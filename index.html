@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1923">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>JRA Dispatch プロンプト集</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;600;700&display=swap');
+
+  :root {
+    --bg-deep: #0a1118;
+    --bg-base: #0f1923;
+    --bg-card: #152233;
+    --bg-card-hover: #1a2a3f;
+    --accent: #4fc3f7;
+    --accent-dim: rgba(79, 195, 247, 0.15);
+    --accent-glow: rgba(79, 195, 247, 0.3);
+    --gold: #ffc107;
+    --green: #66bb6a;
+    --text: #e0e4e8;
+    --text-dim: #8a9bb0;
+    --radius: 12px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html { background: var(--bg-deep); }
+
+  body {
+    font-family: 'Noto Sans JP', 'Segoe UI', sans-serif;
+    background: var(--bg-base);
+    color: var(--text);
+    line-height: 1.7;
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-bottom: calc(24px + var(--safe-bottom));
+  }
+
+  /* ── Header ── */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: linear-gradient(to bottom, var(--bg-base) 70%, transparent);
+    padding: 20px 20px 28px;
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .header-icon {
+    width: 44px; height: 44px;
+    background: var(--accent-dim);
+    border: 2px solid var(--accent);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .header h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.02em;
+  }
+  .header .subtitle {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* ── Principles ── */
+  .principles {
+    margin: 0 16px 20px;
+    padding: 14px 18px;
+    background: var(--bg-card);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .principles h2 {
+    font-size: 0.8rem;
+    color: var(--accent);
+    margin-bottom: 8px;
+    letter-spacing: 0.08em;
+  }
+  .principles li {
+    margin-left: 18px;
+    margin-bottom: 3px;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  /* ── Category ── */
+  .category { padding: 0 16px; margin-bottom: 28px; }
+  .category-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-top: 4px;
+  }
+  .category-num {
+    background: var(--accent);
+    color: var(--bg-base);
+    font-weight: 700;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  .category-title {
+    font-size: 1.05rem;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* ── Prompt Card ── */
+  .prompt-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 10px;
+    border: 1px solid transparent;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .prompt-card:active {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-dim);
+  }
+  .prompt-label {
+    font-size: 0.75rem;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .prompt-text {
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 0.84rem;
+    color: var(--text);
+    white-space: pre-wrap;
+    line-height: 1.65;
+    margin-bottom: 14px;
+  }
+
+  /* ── Buttons ── */
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+  .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  /* Copy */
+  .btn-copy {
+    background: rgba(79, 195, 247, 0.1);
+    color: var(--accent);
+    border: 1px solid rgba(79, 195, 247, 0.3);
+  }
+  .btn-copy:active { background: var(--accent); color: var(--bg-base); }
+  .btn-copy.done { background: var(--green); color: var(--bg-base); border-color: var(--green); }
+
+  /* Share (Web Share API) */
+  .btn-share {
+    background: rgba(255, 193, 7, 0.1);
+    color: var(--gold);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+  }
+  .btn-share:active { background: var(--gold); color: var(--bg-base); }
+
+  /* Launch (Copy + Open Claude) */
+  .btn-launch {
+    background: rgba(102, 187, 106, 0.1);
+    color: var(--green);
+    border: 1px solid rgba(102, 187, 106, 0.3);
+  }
+  .btn-launch:active { background: var(--green); color: var(--bg-base); }
+  .btn-launch.done { background: var(--green); color: var(--bg-base); border-color: var(--green); }
+
+  /* ── Tips ── */
+  .tips {
+    margin: 32px 16px 0;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .tips h2 {
+    font-size: 0.8rem;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+  .tips li {
+    margin-left: 18px;
+    margin-bottom: 5px;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+  }
+
+  /* ── Status bar ── */
+  .status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 600px;
+    background: var(--bg-deep);
+    border-top: 1px solid rgba(79, 195, 247, 0.15);
+    padding: 10px 20px calc(10px + var(--safe-bottom));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    z-index: 100;
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: var(--bg-card);
+    color: var(--text);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    z-index: 200;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  /* ── Send mode toggle ── */
+  .mode-toggle {
+    margin: 0 16px 20px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+  }
+  .mode-toggle h2 {
+    font-size: 0.8rem;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+  .mode-options {
+    display: flex;
+    gap: 8px;
+  }
+  .mode-opt {
+    flex: 1;
+    background: rgba(79, 195, 247, 0.05);
+    border: 1px solid rgba(79, 195, 247, 0.2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .mode-opt.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+  }
+  .mode-opt-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    display: block;
+    margin-bottom: 3px;
+  }
+  .mode-opt-desc {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+  }
+
+  /* Hide share btn if not supported */
+  .no-share .btn-share { display: none; }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="header-icon">⚡</div>
+    <div>
+      <h1>JRA Dispatch</h1>
+      <div class="subtitle">プロンプト集 ／ v1.0 ／ 2026.03.19</div>
+    </div>
+  </div>
+</div>
+
+<div class="mode-toggle">
+  <h2>送信モード</h2>
+  <div class="mode-options">
+    <div class="mode-opt active" data-mode="share" onclick="setMode('share')">
+      <span class="mode-opt-label">📤 共有メニュー</span>
+      <span class="mode-opt-desc">Claudeアプリへ共有</span>
+    </div>
+    <div class="mode-opt" data-mode="launch" onclick="setMode('launch')">
+      <span class="mode-opt-label">🚀 コピー＆起動</span>
+      <span class="mode-opt-desc">コピー後にアプリを開く</span>
+    </div>
+  </div>
+</div>
+
+<div class="principles">
+  <h2>設計原則</h2>
+  <ul>
+    <li><strong>1タスク1メッセージ</strong>：シンプルな方が確実</li>
+    <li><strong>「報告して」で締める</strong>：結果をDispatch上で受け取る</li>
+    <li><strong>「変更はしないで」のセーフガード</strong>：確認系タスクでは必須</li>
+  </ul>
+</div>
+
+<!-- ── Category 1: レース当日 ── -->
+<div class="category">
+  <div class="category-header">
+    <div class="category-num">1</div>
+    <div class="category-title">レース当日（金・土・日）</div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">朝のスキャン指示</div>
+    <div class="prompt-text">scan_odds.py を実行して、検出された戦略を
+表形式でまとめて。検出ゼロならその旨だけ報告。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">watchモード起動</div>
+    <div class="prompt-text">scan_odds.py --watch を起動して。
+検出があればLINE通知が飛ぶはずだけど、
+エラーが出たらここに報告して。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">レース後の速報確認</div>
+    <div class="prompt-text">今日のスキャン結果ログを確認して、
+検出された戦略の数と対象レースを一覧にして。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Category 2: 週次ルーティン ── -->
+<div class="category">
+  <div class="category-header">
+    <div class="category-num">2</div>
+    <div class="category-title">週次ルーティン（日曜夜〜月曜）</div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">週次レポート生成</div>
+    <div class="prompt-text">weekly_report.py を実行して、
+今週のROIと戦略別の成績を要約して報告して。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">ファイル整理</div>
+    <div class="prompt-text">JRAプロジェクトフォルダを確認して、
+・レポート → reports/2026/03/
+・ログ → logs/
+・買い目 → bets/
+に分類して移動。結果を一覧表で報告。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012-2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">watch_stateのバックアップ</div>
+    <div class="prompt-text">watch_state.json を archives/ に
+今日の日付付きでコピーして。
+例: watch_state_20260322.json</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Category 3: 分析・チューニング ── -->
+<div class="category">
+  <div class="category-header">
+    <div class="category-num">3</div>
+    <div class="category-title">分析・チューニング</div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">設定チューニング確認</div>
+    <div class="prompt-text">tuning_advisor.py を実行して、
+推奨される設定変更があれば報告して。
+変更は実行せず提案だけで。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">先週との比較</div>
+    <div class="prompt-text">reports/ から直近2週分のレポートを読んで、
+ROI推移と戦略別の改善/悪化を比較表にして。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">月次サマリー</div>
+    <div class="prompt-text">reports/2026/03/ のレポートを全部読んで、
+月間ROI・最優秀戦略・改善点を
+Wordファイルにまとめて。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Category 4: トラブルシューティング ── -->
+<div class="category">
+  <div class="category-header">
+    <div class="category-num">4</div>
+    <div class="category-title">トラブルシューティング</div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">エラー確認</div>
+    <div class="prompt-text">JRAプロジェクトのログファイルで
+直近のエラーを探して報告して。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">LINE通知テスト</div>
+    <div class="prompt-text">strategy_notifier.py のテスト送信を実行して、
+LINE通知が届いたか確認するから待って。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">bet_config確認</div>
+    <div class="prompt-text">bet_config.json の現在の設定値を
+全項目読み上げて。変更はしないで。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Category 5: シーズン管理 ── -->
+<div class="category">
+  <div class="category-header">
+    <div class="category-num">5</div>
+    <div class="category-title">シーズン管理</div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">軍資金プール確認</div>
+    <div class="prompt-text">現在のプール残高と今週の使用額を
+bet_config.json から確認して報告して。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="prompt-label">dry_run判定</div>
+    <div class="prompt-text">直近4週分のレポートを読んで、
+dry_runを継続すべきか実運用に移行すべきか、
+ROI推移をもとに所見をまとめて。</div>
+    <div class="btn-row">
+      <button class="btn btn-copy" onclick="doCopy(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        コピー
+      </button>
+      <button class="btn btn-share" onclick="doShare(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        Claudeに送信
+      </button>
+      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+        コピー＆起動
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="tips">
+  <h2>運用Tips</h2>
+  <ul>
+    <li>ホーム画面アイコンからフルスクリーンで起動可能</li>
+    <li>オフラインでも動作（Service Worker キャッシュ済み）</li>
+    <li>「共有メニュー」モードはHTTPS環境が必要</li>
+    <li>「コピー＆起動」モードはどの環境でも確実に動作</li>
+    <li>月が変わったらファイルパスの 2026/03/ を更新</li>
+  </ul>
+</div>
+
+<div class="status-bar">
+  <div><span class="status-dot"></span>PWA Ready / Offline OK</div>
+  <div id="modeLabel">Mode: 共有メニュー</div>
+</div>
+
+<script>
+// ── Mode management ──
+var currentMode = 'share';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-opt').forEach(function(el) {
+    el.classList.toggle('active', el.dataset.mode === mode);
+  });
+  var shareBtns = document.querySelectorAll('.btn-share');
+  var launchBtns = document.querySelectorAll('.btn-launch');
+  if (mode === 'share') {
+    shareBtns.forEach(function(b) { b.style.display = ''; });
+    launchBtns.forEach(function(b) { b.style.display = 'none'; });
+    document.getElementById('modeLabel').textContent = 'Mode: 共有メニュー';
+  } else {
+    shareBtns.forEach(function(b) { b.style.display = 'none'; });
+    launchBtns.forEach(function(b) { b.style.display = ''; });
+    document.getElementById('modeLabel').textContent = 'Mode: コピー＆起動';
+  }
+}
+
+// ── Toast ──
+var toastTimer;
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { t.classList.remove('show'); }, 2000);
+}
+
+// ── Get prompt text from card ──
+function getPrompt(btn) {
+  return btn.closest('.prompt-card').querySelector('.prompt-text').textContent.trim();
+}
+
+// ── Copy ──
+function doCopy(btn) {
+  var text = getPrompt(btn);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      markDone(btn, 'btn-copy', 'コピー済み', 'コピー');
+      showToast('クリップボードにコピーしました');
+    }).catch(function() { fallbackCopy(btn, text); });
+  } else {
+    fallbackCopy(btn, text);
+  }
+}
+
+function fallbackCopy(btn, text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;opacity:0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, text.length);
+  try {
+    var ok = document.execCommand('copy');
+    if (ok) {
+      markDone(btn, 'btn-copy', 'コピー済み', 'コピー');
+      showToast('クリップボードにコピーしました');
+    }
+  } catch(e) {}
+  document.body.removeChild(ta);
+}
+
+// ── Web Share API ──
+function doShare(btn) {
+  var text = getPrompt(btn);
+  if (navigator.share) {
+    navigator.share({ text: text }).catch(function() {});
+  } else {
+    // Fallback: copy instead
+    doCopy(btn);
+    showToast('共有非対応のため、コピーしました');
+  }
+}
+
+// ── Copy + Launch Claude app ──
+function doLaunch(btn) {
+  var text = getPrompt(btn);
+  var copyDone = false;
+
+  function afterCopy() {
+    markDone(btn, 'btn-launch', 'コピー済み → 起動中...', 'コピー＆起動');
+    showToast('コピー完了 → Claudeアプリを起動します');
+    setTimeout(function() {
+      // Try Claude app deep link, fallback to web
+      window.location.href = 'https://claude.ai/new';
+    }, 600);
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(afterCopy).catch(function() {
+      fallbackCopySync(text);
+      afterCopy();
+    });
+  } else {
+    fallbackCopySync(text);
+    afterCopy();
+  }
+}
+
+function fallbackCopySync(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;opacity:0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, text.length);
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+}
+
+// ── Button feedback ──
+function markDone(btn, cls, doneText, origText) {
+  btn.classList.add('done');
+  var origHTML = btn.innerHTML;
+  var svgHTML = btn.querySelector('svg').outerHTML;
+  btn.innerHTML = svgHTML + ' ' + doneText;
+  setTimeout(function() {
+    btn.classList.remove('done');
+    btn.innerHTML = svgHTML + ' ' + origText;
+  }, 1800);
+}
+
+// ── Web Share API detection ──
+if (!navigator.share) {
+  document.body.classList.add('no-share');
+  // If no share support, default to launch mode
+  setMode('launch');
+}
+
+// ── Service Worker registration ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(function() {});
+}
+</script>
+
+</body>
+</html>
