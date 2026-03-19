@@ -799,8 +799,7 @@ function doLaunch(btn) {
     showToast('コピー完了 → Claudeアプリを起動します');
     setTimeout(function() {
       // Try Claude app deep link, fallback to web
-      window.open('intent://claude.ai/new#Intent;scheme=https;package=com.anthropic.claude;end', '_system');
-  }
+      window.location.href = 'https://play.google.com/store/apps/details?id=com.anthropic.claude';
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(afterCopy).catch(function() {
