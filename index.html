@@ -799,7 +799,7 @@ function doLaunch(btn) {
     showToast('コピー完了 → Claudeアプリを起動します');
     setTimeout(function() {
       // Try Claude app deep link, fallback to web
-      window.location.href = 'https://claude.ai/new';
+      window.location.href = 'intent://claude.ai/new#Intent;scheme=https;package=com.anthropic.claude;S.browser_fallback_url=https%3A%2F%2Fclaude.ai%2Fnew;end';
     }, 600);
   }
 
