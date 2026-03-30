@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jra-dispatch-v1';
+const CACHE_NAME = 'jra-dispatch-v2';
 const ASSETS = [
   './',
   './index.html',
