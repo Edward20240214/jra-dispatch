@@ -801,14 +801,14 @@ function doShare(btn) {
 // ── Copy + Launch Claude app ──
 function doLaunch(btn) {
   var text = getPrompt(btn);
-  var copyDone = false;
 
   function afterCopy() {
     markDone(btn, 'btn-launch', 'コピー済み → 起動中...', 'コピー＆Dispatch');
     showToast('コピー完了 → Dispatchに貼り付けてください');
     setTimeout(function() {
       window.location.href = 'intent://claude.ai#Intent;scheme=https;package=com.anthropic.claude;S.browser_fallback_url=https%3A%2F%2Fclaude.ai;end';
-
+    }, 600);
+  }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(afterCopy).catch(function() {
       fallbackCopySync(text);
