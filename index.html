@@ -655,18 +655,9 @@ function showCopied(card) {
   toast.textContent = '✓ コピーしました — Claudeを起動中...';
   toast.classList.add('show');
 
-  setTimeout(() => {
-    // Android: intent URLでClaudeアプリを直接起動
-    // iOS/その他: window.openで外部アプリハンドラを起動
-    const intentUrl = 'intent://claude.ai/new#Intent;scheme=https;action=android.intent.action.VIEW;end';
-    const a = document.createElement('a');
-    a.href = intentUrl;
-    a.click();
-    // intent URLが効かない場合のフォールバック
     setTimeout(() => {
-      window.open('https://claude.ai/new', '_blank');
-    }, 300);
-  }, 800);
+      window.location.href = 'intent://claude.ai/new#Intent;scheme=https;package=com.anthropic.claude;action=android.intent.action.VIEW;end';
+    }, 800);
 
   setTimeout(() => {
     toast.classList.remove('show');
