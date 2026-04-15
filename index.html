@@ -477,7 +477,8 @@ emergency_stop を true に変更してください。
       <span class="prompt-label">⑧ Notionに結果記録</span>
       <span class="copy-badge">タップ:コピー / 長押し:共有</span>
     </div>
-    <div class="prompt-text">~/jra-odds-scanner/output/ の今日の結果ファイルを読んで、
+    <div class="prompt-text">~/jra-odds-scanner/purchase_log.csv の今日の日付エントリと、
+最新の analysis_report_*.html を読んで、
 Notionのハンドオフメモ（334e2ffdaa36814887fee5d3d9a5c055）に
 本日の実行結果サマリーを追記して。日付タイトルも更新して。</div>
   </div>
@@ -570,7 +571,8 @@ Select-String -Path purchase_log.csv -Pattern "pending"
       <span class="copy-badge">タップ:コピー / 長押し:共有</span>
     </div>
     <div class="prompt-text">今日のレース結果を分析して。
-~/jra-odds-scanner/output/ 配下の最新ファイルを読んで、
+~/jra-odds-scanner/purchase_log.csv と payout_log.csv の
+今日の日付エントリを読んで、
 Phase 2aフィルタ対象レース数、GO判定数、的中数、
 投資額、回収額、ROIを整理して報告して。</div>
   </div>
@@ -580,7 +582,8 @@ Phase 2aフィルタ対象レース数、GO判定数、的中数、
       <span class="prompt-label">ベイズ更新確認</span>
       <span class="copy-badge">タップ:コピー / 長押し:共有</span>
     </div>
-    <div class="prompt-text">~/jra-odds-scanner/output/ のweekly_reportを読んで、
+    <div class="prompt-text">~/jra-odds-scanner/ 直下の最新 weekly_bet_report_*.csv と
+analysis_report_*.html、roi_stats.json を読んで、
 ベイズ更新後のμ（事後推定ROI）と95%信頼区間、
 事前分布からの変化量を教えて。
 μ₀=106.6%, n₀=30 からどう動いたか。</div>
