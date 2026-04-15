@@ -2,858 +2,674 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#0f1923">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
-<title>JRA Dispatch プロンプト集</title>
+<meta name="apple-mobile-web-app-title" content="JRA Dispatch">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a14">
+<title>JRA Dispatch</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;600;700&display=swap');
 
   :root {
-    --bg-deep: #0a1118;
-    --bg-base: #0f1923;
-    --bg-card: #152233;
-    --bg-card-hover: #1a2a3f;
-    --accent: #4fc3f7;
-    --accent-dim: rgba(79, 195, 247, 0.15);
-    --accent-glow: rgba(79, 195, 247, 0.3);
-    --gold: #ffc107;
-    --green: #66bb6a;
-    --text: #e0e4e8;
-    --text-dim: #8a9bb0;
+    --bg: #0a0a14;
+    --surface: #12121e;
+    --card: #181828;
+    --card-hover: #1e1e32;
+    --card-border: #2a2a4a;
+    --accent: #e94560;
+    --accent-glow: rgba(233,69,96,0.15);
+    --accent-soft: #ff6b81;
+    --green: #2ecc71;
+    --green-glow: rgba(46,204,113,0.15);
+    --amber: #f9a825;
+    --amber-glow: rgba(249,168,37,0.12);
+    --blue: #3498db;
+    --blue-glow: rgba(52,152,219,0.15);
+    --purple: #9b59b6;
+    --purple-glow: rgba(155,89,182,0.15);
+    --text: #e8e8f0;
+    --text-sub: #7a7a9a;
+    --mono: #a8d8a8;
+    --copied: #2ecc71;
     --radius: 12px;
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-  html { background: var(--bg-deep); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    font-family: 'Noto Sans JP', 'Segoe UI', sans-serif;
-    background: var(--bg-base);
+    font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
     color: var(--text);
+    padding: 0;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
     line-height: 1.7;
-    max-width: 600px;
-    margin: 0 auto;
-    min-height: 100vh;
-    min-height: 100dvh;
-    padding-bottom: calc(24px + var(--safe-bottom));
+    font-size: 14px;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
   }
 
-  /* ── Header ── */
+  /* ========== HEADER ========== */
   .header {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: linear-gradient(to bottom, var(--bg-base) 70%, transparent);
-    padding: 20px 20px 28px;
+    background: rgba(10,10,20,0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 16px 20px 14px;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+    border-bottom: 1px solid rgba(42,42,74,0.6);
   }
-  .header-inner {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-  .header-icon {
-    width: 44px; height: 44px;
-    background: var(--accent-dim);
-    border: 2px solid var(--accent);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    flex-shrink: 0;
-  }
-  .header h1 {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: 0.02em;
-  }
-  .header .subtitle {
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    margin-top: 2px;
-  }
-
-  /* ── Principles ── */
-  .principles {
-    margin: 0 16px 20px;
-    padding: 14px 18px;
-    background: var(--bg-card);
-    border-left: 3px solid var(--accent);
-    border-radius: 0 var(--radius) var(--radius) 0;
-  }
-  .principles h2 {
-    font-size: 0.8rem;
-    color: var(--accent);
-    margin-bottom: 8px;
-    letter-spacing: 0.08em;
-  }
-  .principles li {
-    margin-left: 18px;
-    margin-bottom: 3px;
-    font-size: 0.82rem;
-    color: var(--text-dim);
-    line-height: 1.6;
-  }
-
-  /* ── Category ── */
-  .category { padding: 0 16px; margin-bottom: 28px; }
-  .category-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 14px;
-    padding-top: 4px;
-  }
-  .category-num {
-    background: var(--accent);
-    color: var(--bg-base);
-    font-weight: 700;
-    width: 30px; height: 30px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.85rem;
-    flex-shrink: 0;
-  }
-  .category-title {
-    font-size: 1.05rem;
-    color: #fff;
-    font-weight: 600;
-  }
-
-  /* ── Prompt Card ── */
-  .prompt-card {
-    background: var(--bg-card);
-    border-radius: var(--radius);
-    padding: 16px 18px;
-    margin-bottom: 10px;
-    border: 1px solid transparent;
-    transition: border-color 0.2s, background 0.2s;
-  }
-  .prompt-card:active {
-    background: var(--bg-card-hover);
-    border-color: var(--accent-dim);
-  }
-  .prompt-label {
-    font-size: 0.75rem;
-    color: var(--accent);
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    margin-bottom: 8px;
-  }
-  .prompt-text {
-    font-family: 'JetBrains Mono', 'Consolas', monospace;
-    font-size: 0.84rem;
-    color: var(--text);
-    white-space: pre-wrap;
-    line-height: 1.65;
-    margin-bottom: 14px;
-  }
-
-  /* ── Buttons ── */
-  .btn-row {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 14px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.15s;
-    line-height: 1;
-  }
-  .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
-
-  /* Copy */
-  .btn-copy {
-    background: rgba(79, 195, 247, 0.1);
-    color: var(--accent);
-    border: 1px solid rgba(79, 195, 247, 0.3);
-  }
-  .btn-copy:active { background: var(--accent); color: var(--bg-base); }
-  .btn-copy.done { background: var(--green); color: var(--bg-base); border-color: var(--green); }
-
-  /* Share (Web Share API) */
-  .btn-share {
-    background: rgba(255, 193, 7, 0.1);
-    color: var(--gold);
-    border: 1px solid rgba(255, 193, 7, 0.3);
-  }
-  .btn-share:active { background: var(--gold); color: var(--bg-base); }
-
-  /* Launch (Copy + Open Claude) */
-  .btn-launch {
-    background: rgba(102, 187, 106, 0.1);
-    color: var(--green);
-    border: 1px solid rgba(102, 187, 106, 0.3);
-  }
-  .btn-launch:active { background: var(--green); color: var(--bg-base); }
-  .btn-launch.done { background: var(--green); color: var(--bg-base); border-color: var(--green); }
-
-  /* ── Tips ── */
-  .tips {
-    margin: 32px 16px 0;
-    background: var(--bg-card);
-    border-radius: var(--radius);
-    padding: 16px 18px;
-  }
-  .tips h2 {
-    font-size: 0.8rem;
-    color: var(--accent);
-    letter-spacing: 0.08em;
-    margin-bottom: 10px;
-  }
-  .tips li {
-    margin-left: 18px;
-    margin-bottom: 5px;
-    font-size: 0.82rem;
-    color: var(--text-dim);
-  }
-
-  /* ── Status bar ── */
-  .status-bar {
-    position: fixed;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
-    max-width: 600px;
-    background: var(--bg-deep);
-    border-top: 1px solid rgba(79, 195, 247, 0.15);
-    padding: 10px 20px calc(10px + var(--safe-bottom));
+  .header-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 0.72rem;
-    color: var(--text-dim);
-    z-index: 100;
   }
-  .status-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--green);
-    display: inline-block;
-    margin-right: 6px;
-    animation: pulse 2s infinite;
+  .header h1 {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
   }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+  .header h1 .jra { color: var(--accent); }
+  .header h1 .dispatch { color: var(--text); opacity: 0.85; }
+  .header .sub {
+    font-size: 11px;
+    color: var(--text-sub);
+    margin-top: 3px;
+    font-family: 'JetBrains Mono', monospace;
   }
-
-  /* ── Toast ── */
-  .toast {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-80px);
-    background: var(--bg-card);
-    color: var(--text);
-    border: 1px solid var(--accent);
-    border-radius: 10px;
-    padding: 10px 20px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    z-index: 200;
-    opacity: 0;
-    transition: all 0.3s ease;
-    pointer-events: none;
-  }
-  .toast.show {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
+  .version-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-soft);
+    background: var(--accent-glow);
+    padding: 3px 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(233,69,96,0.25);
   }
 
-  /* ── Send mode toggle ── */
-  .mode-toggle {
-    margin: 0 16px 20px;
-    background: var(--bg-card);
-    border-radius: var(--radius);
-    padding: 14px 18px;
-  }
-  .mode-toggle h2 {
-    font-size: 0.8rem;
-    color: var(--accent);
-    letter-spacing: 0.08em;
-    margin-bottom: 10px;
-  }
-  .mode-options {
+  /* ========== FILTER TABS ========== */
+  .filter-bar {
     display: flex;
     gap: 8px;
+    padding: 12px 20px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
-  .mode-opt {
-    flex: 1;
-    background: rgba(79, 195, 247, 0.05);
-    border: 1px solid rgba(79, 195, 247, 0.2);
-    border-radius: 8px;
-    padding: 10px 12px;
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .filter-tab {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--card-border);
+    background: var(--surface);
+    color: var(--text-sub);
     cursor: pointer;
     transition: all 0.2s;
-    text-align: center;
+    white-space: nowrap;
   }
-  .mode-opt.active {
-    background: var(--accent-dim);
+  .filter-tab.active {
+    background: var(--accent);
+    color: #fff;
     border-color: var(--accent);
   }
-  .mode-opt-label {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--text);
-    display: block;
-    margin-bottom: 3px;
-  }
-  .mode-opt-desc {
-    font-size: 0.68rem;
-    color: var(--text-dim);
+  .filter-tab:not(.active):active {
+    background: var(--card);
   }
 
-  /* Hide share btn if not supported */
-  .no-share .btn-share { display: none; }
+  /* ========== CATEGORY ========== */
+  .category {
+    padding: 0 16px;
+    margin-bottom: 8px;
+  }
+  .category-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 18px 4px 10px;
+  }
+  .category-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .cat-pipeline .category-icon { background: var(--blue-glow); }
+  .cat-target .category-icon { background: var(--purple-glow); }
+  .cat-emergency .category-icon { background: var(--accent-glow); }
+  .cat-record .category-icon { background: var(--green-glow); }
+  .cat-info .category-icon { background: var(--amber-glow); }
+  .cat-raceday .category-icon { background: var(--blue-glow); }
+  .cat-analysis .category-icon { background: var(--purple-glow); }
+  .cat-season .category-icon { background: var(--green-glow); }
+
+  .category-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-sub);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .category-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-sub);
+    background: var(--surface);
+    padding: 2px 7px;
+    border-radius: 10px;
+    border: 1px solid var(--card-border);
+  }
+
+  /* ========== PROMPT CARDS ========== */
+  .prompt-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .prompt-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px;
+    height: 100%;
+    border-radius: 3px 0 0 3px;
+  }
+  .cat-pipeline .prompt-card::before { background: var(--blue); }
+  .cat-target .prompt-card::before { background: var(--purple); }
+  .cat-emergency .prompt-card::before { background: var(--accent); }
+  .cat-record .prompt-card::before { background: var(--green); }
+  .cat-info .prompt-card::before { background: var(--amber); }
+  .cat-raceday .prompt-card::before { background: var(--blue); }
+  .cat-analysis .prompt-card::before { background: var(--purple); }
+  .cat-season .prompt-card::before { background: var(--green); }
+
+  .prompt-card:active {
+    background: var(--card-hover);
+    transform: scale(0.985);
+  }
+  .prompt-card.copied {
+    border-color: var(--copied);
+    box-shadow: 0 0 0 1px var(--copied), 0 0 12px rgba(46,204,113,0.15);
+  }
+
+  .prompt-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .prompt-label {
+    font-size: 14px;
+    font-weight: 700;
+    padding-left: 8px;
+  }
+  .prompt-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-sub);
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .copy-badge {
+    font-size: 10px;
+    color: var(--text-sub);
+    background: var(--surface);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--card-border);
+    transition: all 0.2s;
+  }
+  .prompt-card.copied .copy-badge {
+    background: var(--green);
+    color: #fff;
+    border-color: var(--green);
+  }
+
+  .prompt-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--mono);
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+    padding: 12px;
+    margin-left: 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.8;
+    border: 1px solid rgba(42,42,74,0.4);
+  }
+
+  /* ========== TIPS ========== */
+  .tips {
+    margin: 24px 16px;
+    padding: 16px;
+    background: var(--amber-glow);
+    border: 1px solid rgba(249,168,37,0.25);
+    border-radius: var(--radius);
+  }
+  .tips h2 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--amber);
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+  }
+  .tips ul {
+    list-style: none;
+    padding: 0;
+  }
+  .tips li {
+    font-size: 12px;
+    color: var(--text);
+    padding: 4px 0;
+    padding-left: 16px;
+    position: relative;
+    opacity: 0.85;
+  }
+  .tips li::before {
+    content: '›';
+    position: absolute;
+    left: 4px;
+    color: var(--amber);
+    font-weight: bold;
+  }
+
+  /* ========== TOAST ========== */
+  .toast {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--green);
+    color: #fff;
+    padding: 10px 24px;
+    border-radius: 24px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+    z-index: 200;
+    box-shadow: 0 4px 20px rgba(46,204,113,0.3);
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .hidden { display: none; }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f5fa;
+      --surface: #eeeef4;
+      --card: #fff;
+      --card-hover: #f8f8ff;
+      --card-border: #dddde8;
+      --text: #1a1a2e;
+      --text-sub: #8888aa;
+      --mono: #2d6a2d;
+    }
+    .header { background: rgba(245,245,250,0.88); }
+    .prompt-text { background: rgba(0,0,0,0.04); border-color: var(--card-border); }
+  }
 </style>
 </head>
 <body>
 
-<div class="toast" id="toast"></div>
-
 <div class="header">
-  <div class="header-inner">
-    <div class="header-icon">⚡</div>
+  <div class="header-top">
     <div>
-      <h1>JRA Dispatch</h1>
-      <div class="subtitle">プロンプト集 ／ v1.1 ／ 2026.03.30</div>
+      <h1><span class="jra">JRA</span> <span class="dispatch">Dispatch</span></h1>
+      <div class="sub">Phase 2a · Cowork + Computer Use</div>
     </div>
+    <span class="version-badge">v2.0</span>
   </div>
 </div>
 
-<div class="mode-toggle">
-  <h2>送信モード</h2>
-  <div class="mode-options">
-    <div class="mode-opt active" data-mode="share" onclick="setMode('share')">
-      <span class="mode-opt-label">📤 共有メニュー</span>
-      <span class="mode-opt-desc">コピー → Dispatchへ</span>
-    </div>
-    <div class="mode-opt" data-mode="launch" onclick="setMode('launch')">
-      <span class="mode-opt-label">🚀 コピー＆Dispatch</span>
-      <span class="mode-opt-desc">コピー → Dispatchへ</span>
-    </div>
-  </div>
+<!-- Filter Tabs -->
+<div class="filter-bar">
+  <div class="filter-tab active" onclick="filterCategory('all')">ALL</div>
+  <div class="filter-tab" onclick="filterCategory('pipeline')">パイプライン</div>
+  <div class="filter-tab" onclick="filterCategory('target')">TARGET</div>
+  <div class="filter-tab" onclick="filterCategory('emergency')">異常対応</div>
+  <div class="filter-tab" onclick="filterCategory('record')">結果記録</div>
+  <div class="filter-tab" onclick="filterCategory('info')">情報収集</div>
+  <div class="filter-tab" onclick="filterCategory('raceday')">レース当日</div>
+  <div class="filter-tab" onclick="filterCategory('analysis')">結果分析</div>
+  <div class="filter-tab" onclick="filterCategory('season')">シーズン管理</div>
 </div>
 
-<div class="principles">
-  <h2>設計原則</h2>
-  <ul>
-    <li><strong>1タスク1メッセージ</strong>：シンプルな方が確実</li>
-    <li><strong>「報告して」で締める</strong>：結果をDispatch上で受け取る</li>
-    <li><strong>「変更はしないで」のセーフガード</strong>：確認系タスクでは必須</li>
-  </ul>
-</div>
-
-<!-- ── Category 1: レース当日 ── -->
-<div class="category">
+<!-- ============ パイプライン監視 ============ -->
+<div class="category cat-pipeline" data-cat="pipeline">
   <div class="category-header">
-    <div class="category-num">1</div>
-    <div class="category-title">レース当日（金・土・日）</div>
+    <div class="category-icon">📡</div>
+    <span class="category-title">パイプライン監視</span>
+    <span class="category-count">3</span>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">朝のスキャン指示</div>
-    <div class="prompt-text">scan_odds.py を実行して、検出された戦略を
-表形式でまとめて。検出ゼロならその旨だけ報告。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">① パイプライン状況確認</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
+    <div class="prompt-text">jra-odds-scannerの今日のログを確認して。
+~/jra-odds-scanner/logs/ 配下の最新ログファイルを読んで、
+エラーがあれば内容を教えて、なければ「正常稼働中」と返して。</div>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">watchモード起動</div>
-    <div class="prompt-text">scan_odds.py --watch を起動して。
-検出があればLINE通知が飛ぶはずだけど、
-エラーが出たらここに報告して。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">② scan_odds.py 手動再実行</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
+    <div class="prompt-text">~/jra-odds-scanner/ でscan_odds.pyを実行して。
+コマンド: python scan_odds.py
+完了したら出力の最後5行を教えて。</div>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">レース後の速報確認</div>
-    <div class="prompt-text">今日のスキャン結果ログを確認して、
-検出された戦略の数と対象レースを一覧にして。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">③ bet_generator結果確認</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
+    <div class="prompt-text">~/jra-odds-scanner/output/ 配下の今日のbet結果ファイルを開いて、
+生成されたベット一覧を教えて。件数と合計金額も。</div>
   </div>
 </div>
 
-<!-- ── Category 2: 週次ルーティン ── -->
-<div class="category">
+<!-- ============ TARGET操作 ============ -->
+<div class="category cat-target" data-cat="target">
   <div class="category-header">
-    <div class="category-num">2</div>
-    <div class="category-title">週次ルーティン（日曜夜〜月曜）</div>
+    <div class="category-icon">🎯</div>
+    <span class="category-title">TARGET操作</span>
+    <span class="category-count">2</span>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">週次レポート生成</div>
-    <div class="prompt-text">weekly_report.py を実行して、
-今週のROIと戦略別の成績を要約して報告して。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">④ 出馬表エクスポート</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
+    <div class="prompt-text">TARGETを起動して、本日の出馬表データをCSVエクスポートして。
+保存先: ~/jra-odds-scanner/data/
+ファイル名は shutsuba_YYYYMMDD.csv で。</div>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">ファイル整理</div>
-    <div class="prompt-text">JRAプロジェクトフォルダを確認して、
-・レポート → reports/2026/03/
-・ログ → logs/
-・買い目 → bets/
-に分類して移動。結果を一覧表で報告。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012-2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">⑤ 坂路調教データ取得</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
-  </div>
-
-  <div class="prompt-card">
-    <div class="prompt-label">watch_stateのバックアップ</div>
-    <div class="prompt-text">watch_state.json を archives/ に
-今日の日付付きでコピーして。
-例: watch_state_20260322.json</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
-    </div>
+    <div class="prompt-text">TARGETを起動して、本日の出走馬の坂路調教データを取得して。
+CSVエクスポート、保存先: ~/jra-odds-scanner/data/
+ファイル名は slope_YYYYMMDD.csv で。</div>
   </div>
 </div>
 
-<!-- ── Category 3: 分析・チューニング ── -->
-<div class="category">
+<!-- ============ 異常対応 ============ -->
+<div class="category cat-emergency" data-cat="emergency">
   <div class="category-header">
-    <div class="category-num">3</div>
-    <div class="category-title">分析・チューニング</div>
+    <div class="category-icon">🚨</div>
+    <span class="category-title">異常対応</span>
+    <span class="category-count">3</span>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">設定チューニング確認</div>
-    <div class="prompt-text">tuning_advisor.py を実行して、
-推奨される設定変更があれば報告して。
-変更は実行せず提案だけで。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">⑥ watch-mode復旧</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
+    <div class="prompt-text">jra-odds-scannerのwatch-modeの状態を確認して。
+プロセスが落ちていたら再起動して。
+コマンド: cd ~/jra-odds-scanner && python strategy_notifier.py --watch
+結果を教えて。</div>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">先週との比較</div>
-    <div class="prompt-text">reports/ から直近2週分のレポートを読んで、
-ROI推移と戦略別の改善/悪化を比較表にして。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">⑦ IPAT接続確認（dry_run）</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
+    <div class="prompt-text">~/jra-odds-scanner/ でipat_buyer.pyのdry_runテストを実行して。
+コマンド: python ipat_buyer.py --dry-run
+正常終了したか教えて。</div>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">月次サマリー</div>
-    <div class="prompt-text">reports/2026/03/ のレポートを全部読んで、
-月間ROI・最優秀戦略・改善点を
-Wordファイルにまとめて。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">🛑 緊急停止</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
+    <div class="prompt-text">C:\Users\山村健一\jra-odds-scanner\bet_config.json の
+emergency_stop を true に変更してください。
+全購入を即時停止します。</div>
   </div>
 </div>
 
-<!-- ── Category 4: トラブルシューティング ── -->
-<div class="category">
+<!-- ============ 結果記録 ============ -->
+<div class="category cat-record" data-cat="record">
   <div class="category-header">
-    <div class="category-num">4</div>
-    <div class="category-title">トラブルシューティング</div>
+    <div class="category-icon">📝</div>
+    <span class="category-title">結果記録</span>
+    <span class="category-count">2</span>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">エラー確認</div>
-    <div class="prompt-text">JRAプロジェクトのログファイルで
-直近のエラーを探して報告して。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">⑧ Notionに結果記録</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
+    <div class="prompt-text">~/jra-odds-scanner/output/ の今日の結果ファイルを読んで、
+Notionのハンドオフメモ（334e2ffdaa36814887fee5d3d9a5c055）に
+本日の実行結果サマリーを追記して。日付タイトルも更新して。</div>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">LINE通知テスト</div>
-    <div class="prompt-text">strategy_notifier.py のテスト送信を実行して、
-LINE通知が届いたか確認するから待って。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">⑨ weekly_report手動実行</span>
+      <span class="copy-badge">タップでコピー</span>
     </div>
-  </div>
-
-  <div class="prompt-card">
-    <div class="prompt-label">bet_config確認</div>
-    <div class="prompt-text">bet_config.json の現在の設定値を
-全項目読み上げて。変更はしないで。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
-    </div>
+    <div class="prompt-text">~/jra-odds-scanner/ でweekly_report.pyを実行して。
+コマンド: python weekly_report.py
+レポートの要約（ROI、的中率、ベイズ更新後のμ）を教えて。</div>
   </div>
 </div>
 
-<!-- ── Category 5: シーズン管理 ── -->
-<div class="category">
+<!-- ============ 情報収集 ============ -->
+<div class="category cat-info" data-cat="info">
   <div class="category-header">
-    <div class="category-num">5</div>
-    <div class="category-title">シーズン管理</div>
+    <div class="category-icon">🌤</div>
+    <span class="category-title">情報収集</span>
+    <span class="category-count">1</span>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">軍資金プール確認</div>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">⑩ 馬場状態チェック</span>
+      <span class="copy-badge">タップでコピー</span>
+    </div>
+    <div class="prompt-text">JRA公式サイトで今日の馬場状態を確認して。
+中央競馬の全場の芝・ダートの馬場状態を教えて。</div>
+  </div>
+</div>
+
+<!-- ============ レース当日（既存） ============ -->
+<div class="category cat-raceday" data-cat="raceday">
+  <div class="category-header">
+    <div class="category-icon">🏇</div>
+    <span class="category-title">レース当日</span>
+    <span class="category-count">3</span>
+  </div>
+
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">watch状態確認</span>
+      <span class="copy-badge">タップでコピー</span>
+    </div>
+    <div class="prompt-text">C:\Users\山村健一\jra-odds-scanner\watch_state.json
+の中身を表示して、現在の状態を教えてください。
+- 本日の日付になっているか
+- スキャン回数
+- 検出レース数
+- 最終確認済みレース数
+- 最後のスキャン時刻</div>
+  </div>
+
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">watch再起動（--resume）</span>
+      <span class="copy-badge">タップでコピー</span>
+    </div>
+    <div class="prompt-text">cd C:\Users\山村健一\jra-odds-scanner
+python scan_odds.py --watch --resume
+を実行してください。
+watch_state.json から前回の状態を復元して監視を再開します。</div>
+  </div>
+
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">purchase_log確認</span>
+      <span class="copy-badge">タップでコピー</span>
+    </div>
+    <div class="prompt-text">cd C:\Users\山村健一\jra-odds-scanner
+Get-Content purchase_log.csv | Select-Object -Last 5
+Select-String -Path purchase_log.csv -Pattern "pending"
+を実行して、購入ログの最新5行とpending行を教えて。</div>
+  </div>
+</div>
+
+<!-- ============ 結果分析(既存) ============ -->
+<div class="category cat-analysis" data-cat="analysis">
+  <div class="category-header">
+    <div class="category-icon">📊</div>
+    <span class="category-title">結果分析</span>
+    <span class="category-count">2</span>
+  </div>
+
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">日次サマリー</span>
+      <span class="copy-badge">タップでコピー</span>
+    </div>
+    <div class="prompt-text">今日のレース結果を分析して。
+~/jra-odds-scanner/output/ 配下の最新ファイルを読んで、
+Phase 2aフィルタ対象レース数、GO判定数、的中数、
+投資額、回収額、ROIを整理して報告して。</div>
+  </div>
+
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">ベイズ更新確認</span>
+      <span class="copy-badge">タップでコピー</span>
+    </div>
+    <div class="prompt-text">~/jra-odds-scanner/output/ のweekly_reportを読んで、
+ベイズ更新後のμ（事後推定ROI）と95%信頼区間、
+事前分布からの変化量を教えて。
+μ₀=106.6%, n₀=30 からどう動いたか。</div>
+  </div>
+</div>
+
+<!-- ============ シーズン管理（既存） ============ -->
+<div class="category cat-season" data-cat="season">
+  <div class="category-header">
+    <div class="category-icon">📅</div>
+    <span class="category-title">シーズン管理</span>
+    <span class="category-count">2</span>
+  </div>
+
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">軍資金プール確認</span>
+      <span class="copy-badge">タップでコピー</span>
+    </div>
     <div class="prompt-text">現在のプール残高と今週の使用額を
 bet_config.json から確認して報告して。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
-    </div>
   </div>
 
-  <div class="prompt-card">
-    <div class="prompt-label">dry_run判定</div>
+  <div class="prompt-card" onclick="copyPrompt(this)">
+    <div class="prompt-header">
+      <span class="prompt-label">dry_run判定</span>
+      <span class="copy-badge">タップでコピー</span>
+    </div>
     <div class="prompt-text">直近4週分のレポートを読んで、
 dry_runを継続すべきか実運用に移行すべきか、
 ROI推移をもとに所見をまとめて。</div>
-    <div class="btn-row">
-      <button class="btn btn-copy" onclick="doCopy(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        コピー
-      </button>
-      <button class="btn btn-share" onclick="doShare(this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Claudeアプリを開く
-      </button>
-      <button class="btn btn-launch" onclick="doLaunch(this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
-        コピー＆Dispatch
-      </button>
-    </div>
   </div>
 </div>
 
+<!-- Tips -->
 <div class="tips">
   <h2>運用Tips</h2>
   <ul>
-    <li>ホーム画面アイコンからフルスクリーンで起動可能</li>
-    <li>オフラインでも動作（Service Worker キャッシュ済み）</li>
-    <li>「共有メニュー」モードはHTTPS環境が必要</li>
-    <li>「コピー＆Dispatch」モードはどの環境でも確実に動作</li>
-    <li>月が変わったらファイルパスの 2026/03/ を更新</li>
+    <li>タップ→コピー→Claudeアプリに貼り付けの2ステップで送信</li>
+    <li>IPAT実購入フェーズでは⑦の遠隔実行は控え、Task Schedulerに任せる</li>
+    <li>④⑤のTARGET操作はComputer Use必須（PC起動＆Cowork常駐が前提）</li>
+    <li>🛑緊急停止は即座にbet_config.jsonを書き換えるので慎重に</li>
+    <li>PCスリープ設定OFF＋WiFi安定が遠隔運用の前提条件</li>
   </ul>
 </div>
 
-<div class="status-bar">
-  <div><span class="status-dot"></span>PWA Ready / Offline OK</div>
-  <div id="modeLabel">Mode: 共有メニュー</div>
-</div>
+<div class="toast" id="toast">✓ コピーしました</div>
 
 <script>
-// ── Mode management ──
-var currentMode = 'share';
-
-function setMode(mode) {
-  currentMode = mode;
-  document.querySelectorAll('.mode-opt').forEach(function(el) {
-    el.classList.toggle('active', el.dataset.mode === mode);
-  });
-  var shareBtns = document.querySelectorAll('.btn-share');
-  var launchBtns = document.querySelectorAll('.btn-launch');
-  if (mode === 'share') {
-    shareBtns.forEach(function(b) { b.style.display = ''; });
-    launchBtns.forEach(function(b) { b.style.display = 'none'; });
-    document.getElementById('modeLabel').textContent = 'Mode: 共有メニュー';
-  } else {
-    shareBtns.forEach(function(b) { b.style.display = 'none'; });
-    launchBtns.forEach(function(b) { b.style.display = ''; });
-    document.getElementById('modeLabel').textContent = 'Mode: コピー＆Dispatch';
-  }
-}
-
-// ── Toast ──
-var toastTimer;
-function showToast(msg) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(function() { t.classList.remove('show'); }, 2000);
-}
-
-// ── Get prompt text from card ──
-function getPrompt(btn) {
-  return btn.closest('.prompt-card').querySelector('.prompt-text').textContent.trim();
-}
-
-// ── Copy ──
-function doCopy(btn) {
-  var text = getPrompt(btn);
+function copyPrompt(card) {
+  const text = card.querySelector('.prompt-text').textContent.trim();
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(function() {
-      markDone(btn, 'btn-copy', 'コピー済み', 'コピー');
-      showToast('クリップボードにコピーしました');
-    }).catch(function() { fallbackCopy(btn, text); });
+    navigator.clipboard.writeText(text).then(() => showCopied(card));
   } else {
-    fallbackCopy(btn, text);
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); showCopied(card); }
+    catch(e) {}
+    document.body.removeChild(ta);
   }
 }
 
-function fallbackCopy(btn, text) {
-  var ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.cssText = 'position:fixed;left:-9999px;opacity:0';
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  ta.setSelectionRange(0, text.length);
-  try {
-    var ok = document.execCommand('copy');
-    if (ok) {
-      markDone(btn, 'btn-copy', 'コピー済み', 'コピー');
-      showToast('クリップボードにコピーしました');
+function showCopied(card) {
+  card.classList.add('copied');
+  const badge = card.querySelector('.copy-badge');
+  const orig = badge.textContent;
+  badge.textContent = '✓ コピー済み';
+  const toast = document.getElementById('toast');
+  toast.classList.add('show');
+  setTimeout(() => {
+    toast.classList.remove('show');
+    card.classList.remove('copied');
+    badge.textContent = orig;
+  }, 1500);
+}
+
+function filterCategory(cat) {
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('.category').forEach(c => {
+    if (cat === 'all' || c.dataset.cat === cat) {
+      c.style.display = '';
+    } else {
+      c.style.display = 'none';
     }
-  } catch(e) {}
-  document.body.removeChild(ta);
-}
-
-// ── Copy + Open Claude App ──
-function doShare(btn) {
-  var text = getPrompt(btn);
-  function afterCopy() {
-    markDone(btn, 'btn-share', 'コピー済み → 起動中...', 'Claudeアプリを開く');
-    showToast('コピー完了 → Dispatchに貼り付けてください');
-    setTimeout(function() {
-      window.location.href = 'intent://claude.ai#Intent;scheme=https;package=com.anthropic.claude;S.browser_fallback_url=https%3A%2F%2Fclaude.ai;end';
-    }, 600);
-  }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(afterCopy).catch(function() {
-      fallbackCopySync(text);
-      afterCopy();
-    });
-  } else {
-    fallbackCopySync(text);
-    afterCopy();
-  }
-}
-
-// ── Copy + Launch Claude app ──
-function doLaunch(btn) {
-  var text = getPrompt(btn);
-
-  function afterCopy() {
-    markDone(btn, 'btn-launch', 'コピー済み → 起動中...', 'コピー＆Dispatch');
-    showToast('コピー完了 → Dispatchに貼り付けてください');
-    setTimeout(function() {
-      window.location.href = 'intent://claude.ai#Intent;scheme=https;package=com.anthropic.claude;S.browser_fallback_url=https%3A%2F%2Fclaude.ai;end';
-    }, 600);
-  }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(afterCopy).catch(function() {
-      fallbackCopySync(text);
-      afterCopy();
-    });
-  } else {
-    fallbackCopySync(text);
-    afterCopy();
-  }
-}
-
-function fallbackCopySync(text) {
-  var ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.cssText = 'position:fixed;left:-9999px;opacity:0';
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  ta.setSelectionRange(0, text.length);
-  try { document.execCommand('copy'); } catch(e) {}
-  document.body.removeChild(ta);
-}
-
-// ── Button feedback ──
-function markDone(btn, cls, doneText, origText) {
-  btn.classList.add('done');
-  var origHTML = btn.innerHTML;
-  var svgHTML = btn.querySelector('svg').outerHTML;
-  btn.innerHTML = svgHTML + ' ' + doneText;
-  setTimeout(function() {
-    btn.classList.remove('done');
-    btn.innerHTML = svgHTML + ' ' + origText;
-  }, 1800);
-}
-
-// ── Web Share API detection ──
-if (!navigator.share) {
-  document.body.classList.add('no-share');
-  // If no share support, default to launch mode
-  setMode('launch');
-}
-
-// ── Service Worker registration ──
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(function() {});
+  });
 }
 </script>
 
