@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="JRA Dispatch">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a0a14">
+<link rel="manifest" href="manifest.json">
 <title>JRA Dispatch</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;600;700&display=swap');
@@ -722,6 +723,12 @@ function filterCategory(cat) {
       c.style.display = 'none';
     }
   });
+}
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 </script>
 
