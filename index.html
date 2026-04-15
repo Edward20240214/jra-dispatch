@@ -652,12 +652,19 @@ function showCopied(card) {
   const orig = badge.textContent;
   badge.textContent = '✓ コピー済み';
   const toast = document.getElementById('toast');
+  toast.textContent = '✓ コピーしました — Claudeを起動中...';
   toast.classList.add('show');
+
+  setTimeout(() => {
+    window.location.href = 'https://claude.ai/new';
+  }, 800);
+
   setTimeout(() => {
     toast.classList.remove('show');
+    toast.textContent = '✓ コピーしました';
     card.classList.remove('copied');
     badge.textContent = orig;
-  }, 1500);
+  }, 2000);
 }
 
 function filterCategory(cat) {
