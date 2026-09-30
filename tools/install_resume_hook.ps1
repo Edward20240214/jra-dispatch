@@ -104,6 +104,12 @@ $hits = @(@(foreach ($t in $strTokens) {
 }) | Sort-Object { $_.Extent.StartOffset } -Unique)
 
 if ($hits.Count -eq 0) { Stop-WithMessage "「$Marker」を記録している箇所が見つかりませんでした" }
+# 同じブロックの中に複数ある（コンソール用と通知用のメッセージなど）なら、同じ異常終了処理とみなして最後のものを基準にする
+$sameParent = @($hits | ForEach-Object { $_.Parent.Extent.StartOffset } | Sort-Object -Unique).Count -eq 1
+if ($hits.Count -gt 1 -and $sameParent) {
+    Write-Host "「$Marker」は同じブロックの中に $($hits.Count) か所あります（$(($hits | ForEach-Object { "$($_.Extent.StartLineNumber) 行目" }) -join '・')）。同じ異常終了処理とみなします"
+    $hits = @($hits[-1])
+}
 if ($hits.Count -gt 1) {
     Write-Host "「$Marker」を記録している箇所が $($hits.Count) か所あります。自動では決められないため、次の内容をお知らせください:" -ForegroundColor Yellow
     foreach ($h in $hits) { Write-Host '----'; Show-Context ($h.Extent.StartLineNumber - 6) ($h.Extent.EndLineNumber + 8) }

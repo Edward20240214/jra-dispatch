@@ -136,6 +136,19 @@ function Save-Md5([object[]]$Md5, [string]$Path) {
     $Md5 | ForEach-Object { "$($_.Hash)  $($_.File)" } | Set-Content -LiteralPath $Path -Encoding utf8
 }
 
+# run_dynamic_audit.ps1 が監査開始時に保存した md5（"<md5>  <ファイル名>" の行）と現在の md5 を比べる
+# 戻り値: 記録がなければ $null、あれば .Changed（変わったファイル名の配列）
+# （空の配列をそのまま返すと PowerShell が $null に展開してしまうため、オブジェクトに包む）
+function Get-ChangedSinceRun([string]$Md5BeforePath) {
+    if (-not (Test-Path -LiteralPath $Md5BeforePath)) { return $null }
+    $saved = @{}
+    foreach ($l in Get-Content -LiteralPath $Md5BeforePath -Encoding utf8) {
+        if ($l -match '([0-9a-fA-F]{32})\s+(\S.*?)\s*$') { $saved[$Matches[2]] = $Matches[1].ToLower() }
+    }
+    if ($saved.Count -eq 0) { return $null }
+    [pscustomobject]@{ Changed = @(Get-CanonMd5 | Where-Object { $saved.ContainsKey($_.File) -and $saved[$_.File] -ne $_.Hash } | ForEach-Object { $_.File }) }
+}
+
 # "resets 3:20pm" / "resets Sep 30, 3:20pm" / "resets in 2h 13m" → 日時
 # 時刻だけの場合は「中断した時刻より後で最初のその時刻」とみなす
 function Get-ResetTime([string]$Text, [datetime]$FailedAt) {
@@ -298,7 +311,23 @@ if ($stateApplies) {
         exit 0
     }
     if ($runLog.Name -match 'claude_run_(\d{8})_(\d{4})') {
+        $runStamp = "$($Matches[1])_$($Matches[2])"
         $sid = Find-SessionId ([datetime]::ParseExact($Matches[1] + $Matches[2], 'yyyyMMddHHmm', $null))
+        # 中断した監査の開始時と比べて canonical が変わっていないか（改変検知）
+        $md5Check = Get-ChangedSinceRun (Join-Path $OutDir "md5_before_$runStamp.txt")
+        $changed  = if ($md5Check) { $md5Check.Changed } else { @() }
+        if ($null -eq $md5Check) {
+            Write-Log "  md5_before_$runStamp.txt が見つからないため、監査開始時との md5 照合は省略" 'WARN'
+        } elseif ($changed.Count -gt 0) {
+            if ($Schedule) {
+                Write-Log "🛑 監査開始時から canonical が変わっています（$($changed -join ', ')）。安全のため自動再開は予約しません" 'ERROR'
+                Send-Notify "🛑 監査（$Target）は canonical の変化（$($changed -join ', ')）を検知したため、自動再開を予約しませんでした"
+                exit 2
+            }
+            Write-Log "監査開始時から canonical が変わっています（$($changed -join ', ')）。レース開催中の更新などでなければ確認してください" 'WARN'
+        } else {
+            Write-Log '  canonical md5: 監査開始時と一致'
+        }
     }
 } else {
     Write-Log "監査ログ（claude_run_*.log）が見つかりません: $OutDir" 'ERROR'
@@ -440,7 +469,8 @@ try {
                 $exitCode = 2
             }
             default {
-                Write-Log "🛑 再開がエラーで終了しました（exit=$($r.ExitCode)）: $(($r.Result -split "`n")[0])" 'ERROR'
+                $errLine = @($r.Result -split "`n" | Where-Object { $_ -match $ErrorPattern }) + @(($r.Result -split "`n")[0]) | Select-Object -First 1
+                Write-Log "🛑 再開がエラーで終了しました（exit=$($r.ExitCode)）: $errLine" 'ERROR'
                 Send-Notify "🛑 監査（$Target）の再開がエラーで終了しました（exit=$($r.ExitCode)）。ログ: $($r.Log)"
                 $exitCode = 1
             }
