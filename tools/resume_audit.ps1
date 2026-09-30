@@ -35,7 +35,7 @@ param(
     [string]$RepoDir,
     [string]$OutDir,
     [string]$Model = 'claude-opus-5-5',
-    [string]$Effort = 'high',
+    [string]$Effort = 'xhigh',
     [int]$MaxAttempts = 3,
     [int]$UsageThreshold = 20,
     [int]$WeeklyThreshold = 90,
