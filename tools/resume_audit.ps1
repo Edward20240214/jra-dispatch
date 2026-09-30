@@ -40,6 +40,8 @@ param(
     [int]$UsageThreshold = 20,
     [int]$WeeklyThreshold = 90,
     [int]$ResetMarginMinutes = 2,
+    [int]$NetworkWaitMinutes = 15,
+    [string]$NetCheckUrl = 'https://api.anthropic.com',
     [switch]$Schedule,
     [switch]$NoWait,
     [switch]$DryRun
@@ -170,6 +172,27 @@ function Get-ResetTime([string]$Text, [datetime]$FailedAt) {
         if ($t -le $FailedAt) { $t = $t.AddDays(1) }
     }
     return $t
+}
+
+# スリープ復帰直後は Wi-Fi がつながるまで時間がかかるため、通信できるまで待つ
+function Wait-Network {
+    if ($NetworkWaitMinutes -le 0) { return $true }
+    $deadline = (Get-Date).AddMinutes($NetworkWaitMinutes)
+    $warned = $false
+    while ($true) {
+        try {
+            Invoke-WebRequest -Uri $NetCheckUrl -Method Head -TimeoutSec 10 | Out-Null
+            return $true
+        } catch {
+            if ($_.Exception.Response) { return $true }   # HTTP のエラー応答でも、届いていれば通信はできている
+        }
+        if ((Get-Date) -ge $deadline) {
+            Write-Log "$NetworkWaitMinutes 分待ってもネットワークにつながりませんでした" 'ERROR'
+            return $false
+        }
+        if (-not $warned) { Write-Log 'ネットワークの接続を待っています（スリープ復帰の直後など）' 'WARN'; $warned = $true }
+        Start-Sleep -Seconds 20
+    }
 }
 
 function Get-Usage {
@@ -405,6 +428,11 @@ try {
             while (($left = ($readyAt - (Get-Date)).TotalSeconds) -gt 0) { Start-Sleep -Seconds ([math]::Min(60, [math]::Ceiling($left))) }
         }
         $NoWait = $false
+
+        if (-not (Wait-Network)) {
+            Send-Notify "🛑 監査（$Target）の再開を見送りました（ネットワークにつながりません）。resume_audit.ps1 を再実行してください"
+            exit 1
+        }
 
         # 使用率の確認（高ければ 10 分おきに最大 6 回）
         $go = $false
