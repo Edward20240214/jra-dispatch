@@ -81,12 +81,15 @@ const drawsBand = async ($: EngineInterface) =>
 const pinStatus = async ($: EngineInterface, list: readonly UsageWindow[]) =>
   $.ui.status((await drawsBand($)) ? undefined : lineOf(list, await $.clock.now(), ' ｜ '))
 
-// 読み上げのない環境（Windows のターミナルなど）では、Windows の警告音に切り替える
-const sound = async ($: EngineInterface, text: string) => {
+// 読み上げのない環境（Windows のターミナルなど）では、Windows の警告音に切り替える。
+// どちらで鳴らしたか（鳴らせなかったか）を返す
+const sound = async ($: EngineInterface, text: string): Promise<'speech' | 'beep' | 'none'> => {
   try {
     await $.audio.speak(text)
+
+    return 'speech'
   } catch {
-    await $.process
+    const beep = await $.process
       .run([
         'powershell',
         '-NoProfile',
@@ -94,8 +97,18 @@ const sound = async ($: EngineInterface, text: string) => {
         '[System.Media.SystemSounds]::Exclamation.Play(); Start-Sleep -Milliseconds 1500',
       ])
       .catch(() => undefined)
+
+    return beep?.exitCode === 0 ? 'beep' : 'none'
   }
 }
+
+const TEST_COMMAND = 'usage-band-test'
+
+const SOUND_REPORTS = {
+  speech: 'トーストと読み上げで知らせました。',
+  beep: 'トーストと Windows の警告音で知らせました（この環境では読み上げが使えないため）。',
+  none: 'トーストは出しましたが、音は鳴らせませんでした。',
+} as const
 
 // しきい値を下回った枠を一度だけ知らせる。リセットで回復したら、次に下回ったときにまた知らせる
 const alertLow = async ($: EngineInterface, list: readonly UsageWindow[]) => {
@@ -131,6 +144,11 @@ const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[])
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    await $.command.register({
+      name: TEST_COMMAND,
+      description: '残量の通知（トーストと音）をその場で試す',
+    })
+
     const result = await next(e)
     const { rateLimits } = await $.session.usage()
 
@@ -142,6 +160,21 @@ export const register: Register = on => {
     }
 
     return result
+  })
+
+  // しきい値を変えずに、本番と同じトーストと音をその場で出して確かめる
+  on('command.run', { command: TEST_COMMAND }, async $ => {
+    const list = (await read($, windows)) ?? []
+    const current = list.map(w => `${LABELS[w.kind] ?? w.kind} ${Math.round(remainingOf(w))}%`).join(' ｜ ')
+
+    $.ui.toast(
+      `【テスト】残量が${ALERT_BELOW}%を切ると、このように知らせます${current === '' ? '' : `（今の残量：${current}）`}`,
+      { timeoutMs: 10_000 },
+    )
+
+    const via = await sound($, `通知のテストです。残量が${ALERT_BELOW}パーセントを切ると、このようにお知らせします`)
+
+    return { text: `テスト通知：${SOUND_REPORTS[via]}` }
   })
 
   on('session.measure', async ($, e, next) => {

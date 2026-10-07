@@ -67,6 +67,15 @@ const measure = ($: Engine, percentUsed: number, fiveHourResetsAt = '2026-10-07T
     changed: ['rateLimits'],
   })
 
+// the person typing /usage-band-test at the prompt
+const runTestCommand = ($: Engine) =>
+  $.command.run({
+    command: 'usage-band-test',
+    args: '',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 100 },
+  })
+
 const completeTurn = ($: Engine) =>
   $.turn.complete({ answer: 'done', durationMs: 1000, isAborted: false, turnId: 't1', reason: 'answer' })
 
@@ -206,4 +215,25 @@ test('plays the Windows warning sound where nothing can speak', async ($, on) =>
   expect(toasts).toHaveLength(1)
   expect(runs).toHaveLength(1)
   expect(runs[0]?.[0]).toBe('powershell')
+})
+
+test('the test command shows the toast and says it spoke', async ($, on) => {
+  const { toasts, spoken } = setup(on)
+
+  await measure($, 6)
+
+  const { text } = await runTestCommand($)
+
+  expect(toasts).toEqual(['【テスト】残量が20%を切ると、このように知らせます（今の残量：5時間 94% ｜ 週間 55%）'])
+  expect(spoken).toEqual(['通知のテストです。残量が20パーセントを切ると、このようにお知らせします'])
+  expect(text).toBe('テスト通知：トーストと読み上げで知らせました。')
+})
+
+test('the test command says it fell back to the Windows warning sound', async ($, on) => {
+  const { runs } = setup(on, ['terminal'], false)
+
+  const { text } = await runTestCommand($)
+
+  expect(runs).toHaveLength(1)
+  expect(text).toBe('テスト通知：トーストと Windows の警告音で知らせました（この環境では読み上げが使えないため）。')
 })
