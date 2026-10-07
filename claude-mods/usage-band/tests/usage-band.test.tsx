@@ -1,8 +1,10 @@
 import { expect, mock, test } from 'claude-code/testing'
-import type { On } from 'claude-code'
+import type { On, RenderSurface } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
 const SURFACES = ['terminal', 'desktop'] as const
+
+const LINE = '残り使用量  5時間枠 27.5%（14:30リセット）  週間枠 55%（10/10 9:00リセット）'
 
 const props = (hasSurvey = false) => ({
   hasSurvey,
@@ -13,10 +15,21 @@ const props = (hasSurvey = false) => ({
   view: {},
 })
 
-// 2026-10-07 12:00 JST; the engine's own echo of session.measure beneath the plugin
-const setup = (on: On) => {
+// 2026-10-07 12:00 JST; what the engine answers beneath the plugin
+const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal']) => {
+  const statuses: (string | undefined)[] = []
+
   mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
   on('session.measure', ($, e) => ({ changed: e.changed }))
+  on('session.surfaces', () => ({ value: surfaces }))
+  on('ui.status', ($, e) => {
+    statuses.push(e.text)
+
+    return { value: undefined }
+  })
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+
+  return statuses
 }
 
 const measure = ($: Engine, percentUsed: number) =>
@@ -30,6 +43,9 @@ const measure = ($: Engine, percentUsed: number) =>
     ],
     changed: ['rateLimits'],
   })
+
+const completeTurn = ($: Engine) =>
+  $.turn.complete({ answer: 'done', durationMs: 1000, isAborted: false, turnId: 't1', reason: 'answer' })
 
 test('shows a waiting hint before the first reading', async ($, on) => {
   for (const surface of SURFACES) {
@@ -83,4 +99,28 @@ test('yields the band to a survey', async ($, on) => {
   expect(await band.find({ text: /survey/ })).toBeDefined()
   expect(await band.find({ text: /残り使用量/ })).toBeUndefined()
   await band.unmount()
+})
+
+test('without a surface that draws the band, pins the figures on the status line', async ($, on) => {
+  const statuses = setup(on, [])
+
+  await measure($, 72.5)
+
+  expect(statuses.at(-1)).toBe(LINE)
+})
+
+test('without a surface that draws the band, adds the figures beneath each answer', async ($, on) => {
+  setup(on, [])
+  await measure($, 72.5)
+
+  expect((await completeTurn($)).text).toBe(LINE)
+})
+
+test('on the terminal, leaves the status line and the answer alone', async ($, on) => {
+  const statuses = setup(on, ['terminal'])
+
+  await measure($, 72.5)
+
+  expect(statuses.at(-1)).toBeUndefined()
+  expect((await completeTurn($)).text).toBe('done')
 })

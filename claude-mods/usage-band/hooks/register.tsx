@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Register, SessionRateLimit, StateDollar } from 'claude-code'
+import type { EngineInterface, Register, SessionRateLimit } from 'claude-code'
 
 import type { UsageWindow } from '../types'
 
@@ -46,8 +46,30 @@ const formatReset = (resetsAt: string | undefined, now: number) => {
   return isToday ? time : `${local.getUTCMonth() + 1}/${local.getUTCDate()} ${time}`
 }
 
-const save = ($: StateDollar, rateLimits: readonly SessionRateLimit[]) =>
-  update($, windows, () => rateLimits.map(w => ({ ...w })))
+const lineOf = (list: readonly UsageWindow[], now: number) =>
+  list.length === 0
+    ? '残り使用量: 取得待ち'
+    : `残り使用量  ${list
+        .map(w => {
+          const reset = formatReset(w.resetsAt, now)
+
+          return `${LABELS[w.kind] ?? w.kind} ${remainingOf(w)}%${reset === undefined ? '' : `（${reset}リセット）`}`
+        })
+        .join('  ')}`
+
+// 入力欄の上の帯を描けるのはターミナルとデスクトップの Code タブだけ。
+// それ以外（クラウドセッションを Claude アプリで見ている場合など）は、ステータス行と回答の下の1行で代わりに出す
+const drawsBand = async ($: EngineInterface) =>
+  (await $.session.surfaces()).some(s => s === 'terminal' || s === 'desktop')
+
+const pinStatus = async ($: EngineInterface, list: readonly UsageWindow[]) =>
+  $.ui.status((await drawsBand($)) ? undefined : lineOf(list, await $.clock.now()))
+
+const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[]) => {
+  const list = await update($, windows, () => rateLimits.map(w => ({ ...w })))
+
+  await pinStatus($, list ?? [])
+}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -57,6 +79,8 @@ export const register: Register = on => {
     // 再読み込み時に、前回の値を空の読み取りで消さない
     if (rateLimits.length > 0) {
       await save($, rateLimits)
+    } else {
+      await pinStatus($, (await read($, windows)) ?? [])
     }
 
     return result
@@ -68,6 +92,22 @@ export const register: Register = on => {
     }
 
     return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) => {
+    const result = await next(e)
+
+    if (e.agentId !== undefined || e.reason !== 'answer' || (await drawsBand($))) {
+      return result
+    }
+
+    const list = await read($, windows)
+
+    if (list === null || list.length === 0) {
+      return result
+    }
+
+    return { ...result, text: lineOf(list, await $.clock.now()) }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
