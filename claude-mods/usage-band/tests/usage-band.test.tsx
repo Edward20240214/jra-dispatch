@@ -4,7 +4,14 @@ import type { Engine } from 'claude-code/testing'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
-const LINE = '残り使用量  5時間枠 27.5%（14:30リセット）  週間枠 55%（10/10 9:00リセット）'
+const STATUS =
+  '残り使用量 ｜ 🟡 5時間枠 ███░░░░░░░ 残り27.5%（14:30リセット） ｜ 🟢 週間枠 ██████░░░░ 残り55%（10/10 9:00リセット）'
+
+const BENEATH = [
+  '残り使用量',
+  '🟡 5時間枠 ███░░░░░░░ 残り27.5%（14:30リセット）',
+  '🟢 週間枠 ██████░░░░ 残り55%（10/10 9:00リセット）',
+].join('\n')
 
 const props = (hasSurvey = false) => ({
   hasSurvey,
@@ -106,14 +113,14 @@ test('without a surface that draws the band, pins the figures on the status line
 
   await measure($, 72.5)
 
-  expect(statuses.at(-1)).toBe(LINE)
+  expect(statuses.at(-1)).toBe(STATUS)
 })
 
 test('without a surface that draws the band, adds the figures beneath each answer', async ($, on) => {
   setup(on, [])
   await measure($, 72.5)
 
-  expect((await completeTurn($)).text).toBe(LINE)
+  expect((await completeTurn($)).text).toBe(BENEATH)
 })
 
 test('on the terminal, leaves the status line and the answer alone', async ($, on) => {

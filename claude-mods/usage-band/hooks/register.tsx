@@ -46,16 +46,21 @@ const formatReset = (resetsAt: string | undefined, now: number) => {
   return isToday ? time : `${local.getUTCMonth() + 1}/${local.getUTCDate()} ${time}`
 }
 
-const lineOf = (list: readonly UsageWindow[], now: number) =>
+// 色が付けられない文字だけの表示では、色の代わりに印を付ける
+const MARKS = { success: '🟢', warning: '🟡', error: '🔴' } as const
+
+// separator: ステータス行は1行に並べ、回答の下では枠ごとに改行する
+const lineOf = (list: readonly UsageWindow[], now: number, separator: string) =>
   list.length === 0
     ? '残り使用量: 取得待ち'
-    : `残り使用量  ${list
+    : `残り使用量${separator}${list
         .map(w => {
+          const remaining = remainingOf(w)
           const reset = formatReset(w.resetsAt, now)
 
-          return `${LABELS[w.kind] ?? w.kind} ${remainingOf(w)}%${reset === undefined ? '' : `（${reset}リセット）`}`
+          return `${MARKS[colorOf(remaining)]} ${LABELS[w.kind] ?? w.kind} ${barOf(remaining)} 残り${remaining}%${reset === undefined ? '' : `（${reset}リセット）`}`
         })
-        .join('  ')}`
+        .join(separator)}`
 
 // 入力欄の上の帯を描けるのはターミナルとデスクトップの Code タブだけ。
 // それ以外（クラウドセッションを Claude アプリで見ている場合など）は、ステータス行と回答の下の1行で代わりに出す
@@ -63,7 +68,7 @@ const drawsBand = async ($: EngineInterface) =>
   (await $.session.surfaces()).some(s => s === 'terminal' || s === 'desktop')
 
 const pinStatus = async ($: EngineInterface, list: readonly UsageWindow[]) =>
-  $.ui.status((await drawsBand($)) ? undefined : lineOf(list, await $.clock.now()))
+  $.ui.status((await drawsBand($)) ? undefined : lineOf(list, await $.clock.now(), ' ｜ '))
 
 const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[]) => {
   const list = await update($, windows, () => rateLimits.map(w => ({ ...w })))
@@ -107,7 +112,7 @@ export const register: Register = on => {
       return result
     }
 
-    return { ...result, text: lineOf(list, await $.clock.now()) }
+    return { ...result, text: lineOf(list, await $.clock.now(), '\n') }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
