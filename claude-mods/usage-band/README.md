@@ -14,6 +14,7 @@ Claude Code の入力欄の上に、レート制限の残り使用量を表示�
 - VOICEVOX の声は設定 `voice` で選べます（冥鳴ひまり・ずんだもん・四国めたん・春日部つむぎ・青山龍星・玄野武宏。既定は冥鳴ひまり）。`/config` の一覧か、`~/.claude/settings.json` の `pluginConfigs["usage-band@jra-dispatch-mods"].options.voice` で変えられます
 - `/usage-band-test` と入力すると、その場で通知（トーストと音）を試せます。VOICEVOX・標準の声・警告音のどれで鳴らしたかも表示します
 - 残量が変わるたびに、ホームフォルダの `.claude\usage-band\usage-log-YYYY-MM.csv` に1行ずつ記録します（月ごとのファイル）。列は `timestamp_jst, weekday, hour, five_hour_used_pct, five_hour_resets_jst, seven_day_used_pct, seven_day_resets_jst` で、Excel・R・pandas でそのまま開けます。`/usage-band-log` でファイルの場所と今月の件数を表示し、設定 `log` を false にすると記録を止めます。Claude Code を同時にいくつも開いていると、まれに1行抜けることがあります
+- 中身を見るときは `/usage-band-open` を使うと、記録のコピーを Excel で開きます。元のファイルを Excel で開いたままにしても、書き込めなかった記録は取り置いて、閉じたあとにまとめて書き込みます（そのあいだは画面の隅に注意が出ます）
 - 1行にまとめて表示します。帯の幅が 80 桁より狭いときはバーを半分の長さにし、それでも収まらないときは末尾を切ります
 - 回復（リセット）時刻は日本時間で表示します（当日は時刻のみ、翌日は「明日」、それ以降は日付つき）
 - 値は応答のたびに自動で更新されます（Pro / Max などのサブスクリプション接続のみ。API キー接続では表示されません）

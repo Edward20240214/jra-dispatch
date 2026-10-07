@@ -47,10 +47,13 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
   const voiceScripts: { text?: string; voice?: string }[] = []
   const beeps: (readonly string[])[] = []
   const launches: { executable?: string; cwd?: string }[] = []
-  // the files the plugin reads and writes, in memory
+  // the files the plugin reads and writes, in memory; a locked one is open in Excel
   const files = new Map<string, string>()
+  const locked = new Set<string>()
+  const opens: (string | undefined)[] = []
 
   const clock = mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
+  mock.store(on)
   on('session.measure', ($, e) => ({ changed: e.changed }))
   on('session.surfaces', () => ({ value: surfaces }))
   on('ui.status', ($, e) => {
@@ -80,6 +83,17 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
     launches.push({ executable: e.argv[0], cwd: e.init?.cwd })
 
     const env = e.init?.env
+    const log = env?.USAGE_BAND_LOG
+
+    // opening a copy of the log: like Test-Path, a missing file ends with 3
+    if (log !== undefined) {
+      opens.push(log)
+
+      const exitCode = [...files.keys()].some(path => path.endsWith(log)) ? 0 : 3
+
+      return { value: { exitCode, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
+
     // the voice script carries its text in the environment; the warning sound carries none
     const isVoice = env?.USAGE_BAND_SPEECH !== undefined
 
@@ -100,13 +114,18 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
     return text === undefined ? { deny: 'ENOENT: no such file' } : { value: text }
   })
   on('fs.write', ($, e) => {
+    if (locked.has(e.path)) {
+      return { deny: 'EBUSY: resource busy or locked' }
+    }
+
     files.set(e.path, e.text)
 
     return { value: undefined }
   })
+  on('fs.exists', ($, e) => ({ value: files.has(e.path) }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
 
-  return { clock, statuses, toasts, spoken, voiceScripts, beeps, launches, files }
+  return { clock, statuses, toasts, spoken, voiceScripts, beeps, launches, files, locked, opens }
 }
 
 // 5時間枠は 2026-10-07 14:30 JST、週間枠は 2026-10-10 09:00 JST にリセット
@@ -436,5 +455,59 @@ test('/usage-band-log tells where the file is and how many records it holds', as
 
   const { text } = await runLogCommand($)
 
-  expect(text).toBe(`記録ファイル：${LOG_PATH}\n今月の記録：2 件`)
+  expect(text).toBe(
+    `記録ファイル：${LOG_PATH}\n今月の記録：2 件\n中身を見るときは /usage-band-open を使うと、記録を止めずに見られます。`,
+  )
+})
+
+const runOpenCommand = ($: Engine) =>
+  $.command.run({
+    command: 'usage-band-open',
+    args: '',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 100 },
+  })
+
+test('holds the rows while Excel has the log open, warns, and writes them once it is closed', async ($, on) => {
+  const { files, locked, toasts } = setup(on, ['terminal'], 'windows-voicevox')
+
+  await measure($, 10)
+
+  const [path = ''] = logOf(files) ?? []
+
+  // Excel を開く
+  locked.add(path)
+  await measure($, 20)
+
+  expect(files.get(path)?.split('\n').filter(line => line !== '')).toHaveLength(2)
+  expect(toasts.at(-1)).toContain('Excel などで開かれているため')
+  expect((await runLogCommand($)).text).toContain('書き込めずに取り置いている記録：1 件')
+
+  // Excel を閉じる
+  locked.delete(path)
+  await measure($, 30)
+
+  const rows = files.get(path)?.split('\n').filter(line => line !== '') ?? []
+
+  expect(rows.slice(1).map(row => row.split(',')[3])).toEqual(['10', '20', '30'])
+  expect((await runLogCommand($)).text).not.toContain('取り置いている')
+})
+
+test('/usage-band-open opens a copy of this month\'s log in Excel', async ($, on) => {
+  const { opens } = setup(on, ['terminal'], 'windows-voicevox')
+
+  await measure($, 10)
+
+  const { text } = await runOpenCommand($)
+
+  expect(opens).toEqual([LOG_PATH])
+  expect(text).toBe('記録のコピーを Excel で開きました。元のファイルは開いていないので、見ているあいだも記録は止まりません。')
+})
+
+test('/usage-band-open says when there is no log yet', async ($, on) => {
+  setup(on, ['terminal'], 'windows-voicevox')
+
+  const { text } = await runOpenCommand($)
+
+  expect(text).toBe('まだ今月の記録ファイルがありません。残量が変わると記録が始まります。')
 })
