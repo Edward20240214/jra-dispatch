@@ -25,6 +25,8 @@ type Host = 'mac' | 'windows-voicevox' | 'windows-voice' | 'windows-silent'
 
 const VOICE_EXIT = { 'windows-voicevox': 10, 'windows-voice': 11, 'windows-silent': 2 } as const
 
+const WINDOWS_ENV: Record<string, string> = { SystemRoot: 'C:\\WINDOWS', TEMP: 'C:\\Users\\kenichi\\AppData\\Local\\Temp' }
+
 // 2026-10-07 12:00 JST; what the engine answers beneath the plugin
 const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: Host = 'mac') => {
   const statuses: (string | undefined)[] = []
@@ -32,6 +34,7 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
   const spoken: string[] = []
   const voiceScripts: { text?: string; voice?: string }[] = []
   const beeps: (readonly string[])[] = []
+  const launches: { executable?: string; cwd?: string }[] = []
 
   const clock = mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
   on('session.measure', ($, e) => ({ changed: e.changed }))
@@ -60,6 +63,8 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
       return { deny: 'powershell: command not found' }
     }
 
+    launches.push({ executable: e.argv[0], cwd: e.init?.cwd })
+
     const env = e.init?.env
     // the voice script carries its text in the environment; the warning sound carries none
     const isVoice = env?.USAGE_BAND_SPEECH !== undefined
@@ -74,9 +79,10 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
 
     return { value: { exitCode, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
+  on('env.get', ($, e) => ({ value: host === 'mac' ? undefined : WINDOWS_ENV[e.name] }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
 
-  return { clock, statuses, toasts, spoken, voiceScripts, beeps }
+  return { clock, statuses, toasts, spoken, voiceScripts, beeps, launches }
 }
 
 // 5時間枠は 2026-10-07 14:30 JST、週間枠は 2026-10-10 09:00 JST にリセット
@@ -304,4 +310,17 @@ test('the test command says it fell back to the Windows warning sound', async ($
 
   expect(beeps).toHaveLength(1)
   expect(text).toBe('テスト通知：トーストと Windows の警告音で知らせました（日本語の読み上げが使えないため）。')
+})
+
+test('starts PowerShell by its full path from the temp folder, wherever Claude Code was started', async ($, on) => {
+  const { launches } = setup(on, ['terminal'], 'windows-voicevox')
+
+  await runTestCommand($)
+
+  expect(launches).toEqual([
+    {
+      executable: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+      cwd: 'C:\\Users\\kenichi\\AppData\\Local\\Temp',
+    },
+  ])
 })
