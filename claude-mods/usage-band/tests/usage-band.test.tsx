@@ -25,7 +25,19 @@ type Host = 'mac' | 'windows-voicevox' | 'windows-voice' | 'windows-silent'
 
 const VOICE_EXIT = { 'windows-voicevox': 10, 'windows-voice': 11, 'windows-silent': 2 } as const
 
-const WINDOWS_ENV: Record<string, string> = { SystemRoot: 'C:\\WINDOWS', TEMP: 'C:\\Users\\kenichi\\AppData\\Local\\Temp' }
+const WINDOWS_ENV: Record<string, string> = {
+  SystemRoot: 'C:\\WINDOWS',
+  TEMP: 'C:\\Users\\kenichi\\AppData\\Local\\Temp',
+  USERPROFILE: 'C:\\Users\\kenichi',
+}
+
+const LOG_PATH = 'C:\\Users\\kenichi\\.claude\\usage-band\\usage-log-2026-10.csv'
+
+// The test host is not Windows, so the engine reads a C:\ path as relative to the session's folder:
+// find the log by the end of its path
+const logOf = (files: Map<string, string>) => [...files.entries()].find(([path]) => path.endsWith(LOG_PATH))
+const LOG_HEADER =
+  'timestamp_jst,weekday,hour,five_hour_used_pct,five_hour_resets_jst,seven_day_used_pct,seven_day_resets_jst'
 
 // 2026-10-07 12:00 JST; what the engine answers beneath the plugin
 const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: Host = 'mac') => {
@@ -35,6 +47,8 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
   const voiceScripts: { text?: string; voice?: string }[] = []
   const beeps: (readonly string[])[] = []
   const launches: { executable?: string; cwd?: string }[] = []
+  // the files the plugin reads and writes, in memory
+  const files = new Map<string, string>()
 
   const clock = mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
   on('session.measure', ($, e) => ({ changed: e.changed }))
@@ -80,9 +94,19 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
     return { value: { exitCode, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('env.get', ($, e) => ({ value: host === 'mac' ? undefined : WINDOWS_ENV[e.name] }))
+  on('fs.read', ($, e) => {
+    const text = files.get(e.path)
+
+    return text === undefined ? { deny: 'ENOENT: no such file' } : { value: text }
+  })
+  on('fs.write', ($, e) => {
+    files.set(e.path, e.text)
+
+    return { value: undefined }
+  })
   on('turn.complete', ($, e) => ({ text: e.answer }))
 
-  return { clock, statuses, toasts, spoken, voiceScripts, beeps, launches }
+  return { clock, statuses, toasts, spoken, voiceScripts, beeps, launches, files }
 }
 
 // 5時間枠は 2026-10-07 14:30 JST、週間枠は 2026-10-10 09:00 JST にリセット
@@ -355,4 +379,62 @@ test('names each window and its recovery when both drop below 20% together', asy
   expect(spoken).toEqual([
     '5時間枠と週間枠の残りが、20パーセントを切りましたよ。5時間枠は14時30分、週間枠は10月10日の9時に回復します。',
   ])
+})
+
+const runLogCommand = ($: Engine) =>
+  $.command.run({
+    command: 'usage-band-log',
+    args: '',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 100 },
+  })
+
+test('records each change of the windows in this month\'s CSV', async ($, on) => {
+  const { files } = setup(on, ['terminal'], 'windows-voicevox')
+
+  await measure($, 10)
+  await measure($, 30.5)
+
+  expect(logOf(files)?.[1]).toBe(
+    [
+      LOG_HEADER,
+      '2026-10-07T12:00:00+09:00,Wed,12,10,2026-10-07T14:30:00+09:00,45,2026-10-10T09:00:00+09:00',
+      '2026-10-07T12:00:00+09:00,Wed,12,30.5,2026-10-07T14:30:00+09:00,45,2026-10-10T09:00:00+09:00',
+      '',
+    ].join('\n'),
+  )
+})
+
+test('adds to the records already in the file', async ($, on) => {
+  const { files } = setup(on, ['terminal'], 'windows-voicevox')
+  const earlier = `${LOG_HEADER}\n2026-10-01T09:00:00+09:00,Thu,9,3,,40,\n`
+
+  await measure($, 10)
+
+  const [path = ''] = logOf(files) ?? []
+
+  files.set(path, earlier)
+  await measure($, 20)
+
+  expect(files.get(path)?.startsWith(earlier)).toBe(true)
+  expect(files.get(path)?.split('\n').filter(line => line !== '')).toHaveLength(3)
+})
+
+test('records nothing when the log setting is off', { options: { log: false } }, async ($, on) => {
+  const { files } = setup(on, ['terminal'], 'windows-voicevox')
+
+  await measure($, 10)
+
+  expect(files.size).toBe(0)
+})
+
+test('/usage-band-log tells where the file is and how many records it holds', async ($, on) => {
+  setup(on, ['terminal'], 'windows-voicevox')
+
+  await measure($, 10)
+  await measure($, 20)
+
+  const { text } = await runLogCommand($)
+
+  expect(text).toBe(`記録ファイル：${LOG_PATH}\n今月の記録：2 件`)
 })

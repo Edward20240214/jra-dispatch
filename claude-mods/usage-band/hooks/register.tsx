@@ -269,6 +269,65 @@ const alertLow = async ($: EngineInterface, list: readonly UsageWindow[], speech
   void sound($, alertSpeechOf(fresh, now, speech.name), speech.voice)
 }
 
+// 残量の記録: 残量が変わるたびに1行、ホームフォルダの .claude/usage-band/usage-log-YYYY-MM.csv に足していく。
+// 列名と値は ASCII だけにして、Excel でも R や pandas でもそのまま開けるようにする
+const LOG_HEADER =
+  'timestamp_jst,weekday,hour,five_hour_used_pct,five_hour_resets_jst,seven_day_used_pct,seven_day_resets_jst\n'
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+// 2026-10-07T21:05:09+09:00
+const jstIsoOf = (ms: number) => {
+  const d = new Date(ms + JST_OFFSET_MS)
+
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}+09:00`
+}
+
+const logPathOf = async ($: EngineInterface, now: number) => {
+  const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME'))
+
+  if (home === undefined) {
+    return undefined
+  }
+
+  const d = new Date(now + JST_OFFSET_MS)
+  // Windows のホーム（C:\Users\...）なら \ で、それ以外は / でつなぐ
+  const sep = home.includes('\\') ? '\\' : '/'
+
+  return [home, '.claude', 'usage-band', `usage-log-${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}.csv`].join(sep)
+}
+
+const logRowOf = (list: readonly UsageWindow[], now: number) => {
+  const local = new Date(now + JST_OFFSET_MS)
+  const cells = (kind: string) => {
+    const w = list.find(one => one.kind === kind)
+    const at = w?.resetsAt === undefined ? NaN : Date.parse(w.resetsAt)
+
+    return [w === undefined ? '' : String(w.percentUsed), Number.isNaN(at) ? '' : jstIsoOf(at)]
+  }
+
+  return `${[jstIsoOf(now), WEEKDAYS[local.getUTCDay()], local.getUTCHours(), ...cells('five_hour'), ...cells('seven_day')].join(',')}\n`
+}
+
+// 記録に失敗しても、表示と通知は止めない
+const appendLog = async ($: EngineInterface, list: readonly UsageWindow[]) => {
+  try {
+    const now = await $.clock.now()
+    const path = await logPathOf($, now)
+
+    if (path === undefined || list.length === 0) {
+      return
+    }
+
+    const before = await $.fs.read(path).catch(() => LOG_HEADER)
+
+    await $.fs.write(path, before + logRowOf(list, now))
+  } catch {
+    // 記録できなかった分は諦める
+  }
+}
+
 const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[], speech: Speech) => {
   const list = (await update($, windows, () => rateLimits.map(w => ({ ...w })))) ?? []
 
@@ -281,11 +340,16 @@ export const register: Register = (on, options) => {
   // 「けんいちさん」と書かれていても「さん」が重ならないようにする
   const name = typeof options.name === 'string' ? options.name.trim().replace(/さん$/, '') : ''
   const speech: Speech = { voice, name }
+  const shouldLog = options.log !== false
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'usage-band-test',
       description: '残量の通知（トーストと音）をその場で試す',
+    })
+    await $.command.register({
+      name: 'usage-band-log',
+      description: '残量の記録ファイルの場所と、今月の件数を表示する',
     })
 
     const result = await next(e)
@@ -322,9 +386,29 @@ export const register: Register = (on, options) => {
     return { text: `テスト通知：${reportOf(via, voice)}` }
   })
 
+  on('command.run', { command: 'usage-band-log' }, async $ => {
+    const path = await logPathOf($, await $.clock.now())
+
+    if (path === undefined) {
+      return { text: '記録ファイルの置き場所（ホームフォルダ）が分かりませんでした。' }
+    }
+
+    const rows = await $.fs
+      .read(path)
+      .then(text => text.split('\n').filter(line => line !== '').length - 1)
+      .catch(() => 0)
+    const state = shouldLog ? '' : '（記録は止めてあります。設定 log を true にすると再開します）'
+
+    return { text: `記録ファイル：${path}\n今月の記録：${rows} 件${state}` }
+  })
+
   on('session.measure', async ($, e, next) => {
     if (e.changed.includes('rateLimits')) {
       await save($, e.rateLimits, speech)
+
+      if (shouldLog) {
+        await appendLog($, e.rateLimits)
+      }
     }
 
     return next(e)
