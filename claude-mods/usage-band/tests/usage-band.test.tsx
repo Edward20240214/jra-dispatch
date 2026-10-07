@@ -17,19 +17,21 @@ const props = (bodyColumns = 100, hasSurvey = false) => ({
   view: {},
 })
 
+// The machine the session runs on, as far as sound goes:
+// mac: Claude Code's own speech works and there is no PowerShell;
+// windows-*: no speech of Claude Code's own, and PowerShell finds VOICEVOX running,
+// only the Windows Japanese voice, or no Japanese voice at all
+type Host = 'mac' | 'windows-voicevox' | 'windows-voice' | 'windows-silent'
+
+const VOICE_EXIT = { 'windows-voicevox': 10, 'windows-voice': 11, 'windows-silent': 2 } as const
+
 // 2026-10-07 12:00 JST; what the engine answers beneath the plugin
-// voices: whether Claude Code's own speech works, and whether Windows has a Japanese voice
-const setup = (
-  on: On,
-  surfaces: readonly RenderSurface[] = ['terminal'],
-  voices: { engine?: boolean; windows?: boolean } = {},
-) => {
-  const { engine = true, windows = true } = voices
+const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: Host = 'mac') => {
   const statuses: (string | undefined)[] = []
   const toasts: string[] = []
   const spoken: string[] = []
-  const windowsSpoken: (string | undefined)[] = []
-  const beeps: string[] = []
+  const voiceScripts: { text?: string; voice?: string }[] = []
+  const beeps: (readonly string[])[] = []
 
   const clock = mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
   on('session.measure', ($, e) => ({ changed: e.changed }))
@@ -45,7 +47,7 @@ const setup = (
     return { value: undefined }
   })
   on('audio.speak', ($, e) => {
-    if (!engine) {
+    if (host !== 'mac') {
       return { deny: 'no synthesizer' }
     }
 
@@ -54,22 +56,27 @@ const setup = (
     return { value: { via: 'system' as const } }
   })
   on('process.run', ($, e) => {
-    const isSpeech = e.argv.join(' ').includes('System.Speech')
-
-    if (isSpeech && windows) {
-      windowsSpoken.push(e.init?.env?.USAGE_BAND_SPEECH)
-    } else if (!isSpeech) {
-      beeps.push(e.argv.join(' '))
+    if (host === 'mac') {
+      return { deny: 'powershell: command not found' }
     }
 
-    // 日本語の声がないとき、読み上げのスクリプトは 2 で終わる
-    const exitCode = isSpeech && !windows ? 2 : 0
+    const env = e.init?.env
+    // the voice script carries its text in the environment; the warning sound carries none
+    const isVoice = env?.USAGE_BAND_SPEECH !== undefined
+
+    if (isVoice) {
+      voiceScripts.push({ text: env?.USAGE_BAND_SPEECH, voice: env?.USAGE_BAND_VOICE })
+    } else {
+      beeps.push(e.argv)
+    }
+
+    const exitCode = isVoice ? VOICE_EXIT[host] : 0
 
     return { value: { exitCode, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('turn.complete', ($, e) => ({ text: e.answer }))
 
-  return { clock, statuses, toasts, spoken, windowsSpoken, beeps }
+  return { clock, statuses, toasts, spoken, voiceScripts, beeps }
 }
 
 // 5時間枠は 2026-10-07 14:30 JST、週間枠は 2026-10-10 09:00 JST にリセット
@@ -198,20 +205,25 @@ test('on the terminal, leaves the status line and the answer alone', async ($, o
   expect((await completeTurn($)).text).toBe('done')
 })
 
+const ALERT = '5時間枠の残りが、20パーセントを切りました。'
+const TEST_SPEECH = '通知のテストです。残量が20パーセントを切ると、このようにお知らせします。'
+
 test('alerts once, with a toast and speech, when a window drops below 20%', async ($, on) => {
-  const { toasts, spoken, windowsSpoken, beeps } = setup(on)
+  const { clock, toasts, spoken } = setup(on)
 
   await measure($, 70)
   expect(toasts).toHaveLength(0)
 
   await measure($, 85)
+  // 音は残量の更新を止めないよう待たずに鳴らすので、鳴り終わるまで進める
+  await clock.settle()
   expect(toasts).toEqual(['⚠ 残量が20%を切りました：5時間 残り15% 14:30回復'])
-  expect(spoken).toEqual(['5時間枠の残りが20パーセントを切りました'])
-  expect(windowsSpoken).toHaveLength(0)
-  expect(beeps).toHaveLength(0)
+  expect(spoken).toEqual([ALERT])
 
   await measure($, 90)
+  await clock.settle()
   expect(toasts).toHaveLength(1)
+  expect(spoken).toHaveLength(1)
 })
 
 test('alerts again after the window resets and drops below 20% once more', async ($, on) => {
@@ -224,53 +236,69 @@ test('alerts again after the window resets and drops below 20% once more', async
   expect(toasts).toHaveLength(2)
 })
 
-test('speaks with the Windows Japanese voice where Claude Code cannot speak', async ($, on) => {
-  const { clock, toasts, windowsSpoken, beeps } = setup(on, ['terminal'], { engine: false })
+test('on Windows, speaks the alert through PowerShell with the default VOICEVOX voice', async ($, on) => {
+  const { clock, voiceScripts, spoken, beeps } = setup(on, ['terminal'], 'windows-voicevox')
 
   await measure($, 85)
   await clock.settle()
 
-  expect(toasts).toHaveLength(1)
-  expect(windowsSpoken).toEqual(['5時間枠の残りが20パーセントを切りました'])
+  expect(voiceScripts).toEqual([{ text: ALERT, voice: '冥鳴ひまり' }])
+  expect(spoken).toHaveLength(0)
   expect(beeps).toHaveLength(0)
 })
 
 test('plays the Windows warning sound where no Japanese voice is installed', async ($, on) => {
-  const { clock, toasts, windowsSpoken, beeps } = setup(on, ['terminal'], { engine: false, windows: false })
+  const { clock, toasts, beeps } = setup(on, ['terminal'], 'windows-silent')
 
   await measure($, 85)
-  // 音は残量の更新を止めないよう待たずに鳴らすので、鳴り終わるまで進める
   await clock.settle()
 
   expect(toasts).toHaveLength(1)
-  expect(windowsSpoken).toHaveLength(0)
   expect(beeps).toHaveLength(1)
-  expect(beeps[0]).toContain('SystemSounds')
+  expect(beeps[0]).toContain('-EncodedCommand')
 })
 
-test('the test command shows the toast and says it spoke', async ($, on) => {
-  const { toasts, spoken } = setup(on)
+test('the test command shows the toast and reports VOICEVOX', async ($, on) => {
+  const { toasts, voiceScripts } = setup(on, ['terminal'], 'windows-voicevox')
 
   await measure($, 6)
 
   const { text } = await runTestCommand($)
 
   expect(toasts).toEqual(['【テスト】残量が20%を切ると、このように知らせます（今の残量：5時間 94% ｜ 週間 55%）'])
-  expect(spoken).toEqual(['通知のテストです。残量が20パーセントを切ると、このようにお知らせします'])
-  expect(text).toBe('テスト通知：トーストと読み上げで知らせました。')
+  expect(voiceScripts).toEqual([{ text: TEST_SPEECH, voice: '冥鳴ひまり' }])
+  expect(text).toBe('テスト通知：トーストと VOICEVOX（冥鳴ひまり）の声で知らせました。')
 })
 
-test('the test command speaks with the Windows Japanese voice', async ($, on) => {
-  const { windowsSpoken } = setup(on, ['terminal'], { engine: false })
+test('the test command uses the voice chosen in the settings', { options: { voice: 'ずんだもん' } }, async ($, on) => {
+  const { voiceScripts } = setup(on, ['terminal'], 'windows-voicevox')
 
   const { text } = await runTestCommand($)
 
-  expect(windowsSpoken).toEqual(['通知のテストです。残量が20パーセントを切ると、このようにお知らせします'])
-  expect(text).toBe('テスト通知：トーストと読み上げで知らせました。')
+  expect(voiceScripts[0]?.voice).toBe('ずんだもん')
+  expect(text).toBe('テスト通知：トーストと VOICEVOX（ずんだもん）の声で知らせました。')
+})
+
+test('the test command reports the standard voice when VOICEVOX is not running', async ($, on) => {
+  const { voiceScripts } = setup(on, ['terminal'], 'windows-voice')
+
+  const { text } = await runTestCommand($)
+
+  expect(voiceScripts).toHaveLength(1)
+  expect(text).toBe('テスト通知：トーストと標準の声で知らせました（VOICEVOX を起動しておくと、より自然な声になります）。')
+})
+
+test('the test command uses Claude Code\'s own speech where there is no PowerShell', async ($, on) => {
+  const { spoken } = setup(on, ['terminal'], 'mac')
+
+  const { text } = await runTestCommand($)
+
+  expect(spoken).toEqual([TEST_SPEECH])
+  expect(text).toBe('テスト通知：トーストと標準の声で知らせました（VOICEVOX を起動しておくと、より自然な声になります）。')
 })
 
 test('the test command says it fell back to the Windows warning sound', async ($, on) => {
-  const { beeps } = setup(on, ['terminal'], { engine: false, windows: false })
+  const { beeps } = setup(on, ['terminal'], 'windows-silent')
 
   const { text } = await runTestCommand($)
 

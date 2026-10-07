@@ -81,51 +81,104 @@ const drawsBand = async ($: EngineInterface) =>
 const pinStatus = async ($: EngineInterface, list: readonly UsageWindow[]) =>
   $.ui.status((await drawsBand($)) ? undefined : lineOf(list, await $.clock.now(), ' ｜ '))
 
-const powershell = ($: EngineInterface, script: readonly string[], env?: Record<string, string>) =>
+// PowerShell のスクリプトは、引用符や改行の扱いを気にせずに済むよう -EncodedCommand（UTF-16LE の base64）で渡す
+const encodePowerShell = (script: string) => {
+  let bytes = ''
+
+  for (let i = 0; i < script.length; i += 1) {
+    const code = script.charCodeAt(i)
+    bytes += String.fromCharCode(code & 0xff, code >> 8)
+  }
+
+  return btoa(bytes)
+}
+
+// PowerShell の終了コード。PowerShell がない環境（Windows 以外）では undefined
+const powershell = ($: EngineInterface, script: string, env?: Record<string, string>) =>
   $.process
-    .run(['powershell', '-NoProfile', '-Command', script.join('; ')], env === undefined ? undefined : { env })
-    .then(r => r.exitCode === 0)
-    .catch(() => false)
+    .run(['powershell', '-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(script)], {
+      timeoutMs: 90_000,
+      ...(env === undefined ? {} : { env }),
+    })
+    .then(r => r.exitCode)
+    .catch(() => undefined)
 
-// Windows に入っている日本語の声で読み上げる。日本語の声がなければ 2 で終わる。
-// 文言は引用符の扱いを気にせずに済むよう、環境変数で渡す
-const WINDOWS_SPEECH = [
-  'Add-Type -AssemblyName System.Speech',
-  '$s = New-Object System.Speech.Synthesis.SpeechSynthesizer',
-  "$v = $s.GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -eq 'ja-JP' } | Select-Object -First 1",
-  'if (-not $v) { exit 2 }',
-  '$s.SelectVoice($v.VoiceInfo.Name)',
-  '$s.Speak($env:USAGE_BAND_SPEECH)',
-]
+const SPOKE_VOICEVOX = 10
+const SPOKE_WINDOWS = 11
 
-const WINDOWS_BEEP = ['[System.Media.SystemSounds]::Exclamation.Play()', 'Start-Sleep -Milliseconds 1500']
+// VOICEVOX が起動していればその声で、なければ Windows に入っている日本語の声で読み上げる。
+// 日本語の名前と文言は環境変数で渡し、VOICEVOX の応答はファイルのまま受け渡して文字化けを避ける。
+// 終わり方: 10 = VOICEVOX、11 = Windows の声、2 = どちらも使えない
+const WINDOWS_VOICE = `
+$ErrorActionPreference = 'Stop'
+$text = $env:USAGE_BAND_SPEECH
+try {
+  $base = 'http://127.0.0.1:50021'
+  $speakersFile = Join-Path $env:TEMP 'usage-band-speakers.json'
+  $queryFile = Join-Path $env:TEMP 'usage-band-query.json'
+  $wavFile = Join-Path $env:TEMP 'usage-band.wav'
+  Invoke-WebRequest -UseBasicParsing -Uri "$base/speakers" -OutFile $speakersFile -TimeoutSec 3
+  $speakers = Get-Content -Raw -Encoding UTF8 $speakersFile | ConvertFrom-Json
+  $speaker = $speakers | Where-Object { $_.name -eq $env:USAGE_BAND_VOICE } | Select-Object -First 1
+  if (-not $speaker) { $speaker = $speakers[0] }
+  $id = $speaker.styles[0].id
+  Invoke-WebRequest -UseBasicParsing -Method Post -Uri ("$base/audio_query?speaker=$id&text=" + [uri]::EscapeDataString($text)) -OutFile $queryFile -TimeoutSec 30
+  Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$base/synthesis?speaker=$id" -ContentType 'application/json' -InFile $queryFile -OutFile $wavFile -TimeoutSec 60
+  (New-Object System.Media.SoundPlayer $wavFile).PlaySync()
+  exit ${SPOKE_VOICEVOX}
+} catch {}
+try {
+  Add-Type -AssemblyName System.Speech
+  $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
+  $v = $s.GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -eq 'ja-JP' } | Select-Object -First 1
+  if (-not $v) { exit 2 }
+  $s.SelectVoice($v.VoiceInfo.Name)
+  $s.Speak($text)
+  exit ${SPOKE_WINDOWS}
+} catch { exit 2 }
+`
 
-// Claude Code の読み上げ → Windows の日本語音声 → Windows の警告音の順に試す。
+const WINDOWS_BEEP = `
+[System.Media.SystemSounds]::Exclamation.Play()
+Start-Sleep -Milliseconds 1500
+`
+
+type Via = 'voicevox' | 'speech' | 'beep' | 'none'
+
+// VOICEVOX → Windows の日本語の声 → Claude Code の読み上げ（macOS など） → Windows の警告音の順に試す。
 // どの方法で鳴らしたか（鳴らせなかったか）を返す
-const sound = async ($: EngineInterface, text: string): Promise<'speech' | 'beep' | 'none'> => {
+const sound = async ($: EngineInterface, text: string, voice: string): Promise<Via> => {
+  const spoke = await powershell($, WINDOWS_VOICE, { USAGE_BAND_SPEECH: text, USAGE_BAND_VOICE: voice })
+
+  if (spoke === SPOKE_VOICEVOX) {
+    return 'voicevox'
+  }
+
+  if (spoke === SPOKE_WINDOWS) {
+    return 'speech'
+  }
+
   try {
     await $.audio.speak(text)
 
     return 'speech'
   } catch {
-    if (await powershell($, WINDOWS_SPEECH, { USAGE_BAND_SPEECH: text })) {
-      return 'speech'
-    }
-
-    return (await powershell($, WINDOWS_BEEP)) ? 'beep' : 'none'
+    return (await powershell($, WINDOWS_BEEP)) === 0 ? 'beep' : 'none'
   }
 }
 
-const TEST_COMMAND = 'usage-band-test'
+const DEFAULT_VOICE = '冥鳴ひまり'
 
-const SOUND_REPORTS = {
-  speech: 'トーストと読み上げで知らせました。',
-  beep: 'トーストと Windows の警告音で知らせました（日本語の読み上げが使えないため）。',
-  none: 'トーストは出しましたが、音は鳴らせませんでした。',
-} as const
+const reportOf = (via: Via, voice: string) =>
+  ({
+    voicevox: `トーストと VOICEVOX（${voice}）の声で知らせました。`,
+    speech: 'トーストと標準の声で知らせました（VOICEVOX を起動しておくと、より自然な声になります）。',
+    beep: 'トーストと Windows の警告音で知らせました（日本語の読み上げが使えないため）。',
+    none: 'トーストは出しましたが、音は鳴らせませんでした。',
+  })[via]
 
 // しきい値を下回った枠を一度だけ知らせる。リセットで回復したら、次に下回ったときにまた知らせる
-const alertLow = async ($: EngineInterface, list: readonly UsageWindow[]) => {
+const alertLow = async ($: EngineInterface, list: readonly UsageWindow[], voice: string) => {
   const before = await read($, alerted)
   const fresh = list.filter(w => remainingOf(w) < ALERT_BELOW && !before[w.kind])
 
@@ -146,20 +199,22 @@ const alertLow = async ($: EngineInterface, list: readonly UsageWindow[]) => {
     { timeoutMs: 10_000 },
   )
   // 読み上げを待つと残量の更新が止まるので、待たずに鳴らす
-  void sound($, `${labels.map(l => `${l}枠`).join('と')}の残りが${ALERT_BELOW}パーセントを切りました`)
+  void sound($, `${labels.map(l => `${l}枠`).join('と')}の残りが、${ALERT_BELOW}パーセントを切りました。`, voice)
 }
 
-const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[]) => {
+const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[], voice: string) => {
   const list = (await update($, windows, () => rateLimits.map(w => ({ ...w })))) ?? []
 
   await pinStatus($, list)
-  await alertLow($, list)
+  await alertLow($, list, voice)
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  const voice = typeof options.voice === 'string' && options.voice !== '' ? options.voice : DEFAULT_VOICE
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: TEST_COMMAND,
+      name: 'usage-band-test',
       description: '残量の通知（トーストと音）をその場で試す',
     })
 
@@ -168,7 +223,7 @@ export const register: Register = on => {
 
     // 再読み込み時に、前回の値を空の読み取りで消さない
     if (rateLimits.length > 0) {
-      await save($, rateLimits)
+      await save($, rateLimits, voice)
     } else {
       await pinStatus($, (await read($, windows)) ?? [])
     }
@@ -177,7 +232,7 @@ export const register: Register = on => {
   })
 
   // しきい値を変えずに、本番と同じトーストと音をその場で出して確かめる
-  on('command.run', { command: TEST_COMMAND }, async $ => {
+  on('command.run', { command: 'usage-band-test' }, async $ => {
     const list = (await read($, windows)) ?? []
     const current = list.map(w => `${LABELS[w.kind] ?? w.kind} ${Math.round(remainingOf(w))}%`).join(' ｜ ')
 
@@ -186,14 +241,14 @@ export const register: Register = on => {
       { timeoutMs: 10_000 },
     )
 
-    const via = await sound($, `通知のテストです。残量が${ALERT_BELOW}パーセントを切ると、このようにお知らせします`)
+    const via = await sound($, `通知のテストです。残量が${ALERT_BELOW}パーセントを切ると、このようにお知らせします。`, voice)
 
-    return { text: `テスト通知：${SOUND_REPORTS[via]}` }
+    return { text: `テスト通知：${reportOf(via, voice)}` }
   })
 
   on('session.measure', async ($, e, next) => {
     if (e.changed.includes('rateLimits')) {
-      await save($, e.rateLimits)
+      await save($, e.rateLimits, voice)
     }
 
     return next(e)
