@@ -18,8 +18,11 @@ const props = (bodyColumns = 100, hasSurvey = false) => ({
 })
 
 // 2026-10-07 12:00 JST; what the engine answers beneath the plugin
-const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal']) => {
+const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], canSpeak = true) => {
   const statuses: (string | undefined)[] = []
+  const toasts: string[] = []
+  const spoken: string[] = []
+  const runs: (readonly string[])[] = []
 
   mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
   on('session.measure', ($, e) => ({ changed: e.changed }))
@@ -29,9 +32,28 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal']) => {
 
     return { value: undefined }
   })
+  on('ui.toast', ($, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  on('audio.speak', ($, e) => {
+    if (!canSpeak) {
+      return { deny: 'no synthesizer' }
+    }
+
+    spoken.push(e.text)
+
+    return { value: { via: 'system' as const } }
+  })
+  on('process.run', ($, e) => {
+    runs.push(e.argv)
+
+    return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
   on('turn.complete', ($, e) => ({ text: e.answer }))
 
-  return statuses
+  return { statuses, toasts, spoken, runs }
 }
 
 // 5時間枠は 2026-10-07 14:30 JST、週間枠は 2026-10-10 09:00 JST にリセット
@@ -128,7 +150,7 @@ test('yields the band to a survey', async ($, on) => {
 })
 
 test('without a surface that draws the band, pins the figures on the status line', async ($, on) => {
-  const statuses = setup(on, [])
+  const { statuses } = setup(on, [])
 
   await measure($, 72.5)
 
@@ -143,10 +165,45 @@ test('without a surface that draws the band, adds the figures beneath each answe
 })
 
 test('on the terminal, leaves the status line and the answer alone', async ($, on) => {
-  const statuses = setup(on, ['terminal'])
+  const { statuses } = setup(on, ['terminal'])
 
   await measure($, 72.5)
 
   expect(statuses.at(-1)).toBeUndefined()
   expect((await completeTurn($)).text).toBe('done')
+})
+
+test('alerts once, with a toast and speech, when a window drops below 20%', async ($, on) => {
+  const { toasts, spoken, runs } = setup(on)
+
+  await measure($, 70)
+  expect(toasts).toHaveLength(0)
+
+  await measure($, 85)
+  expect(toasts).toEqual(['⚠ 残量が20%を切りました：5時間 残り15% 14:30回復'])
+  expect(spoken).toEqual(['5時間枠の残りが20パーセントを切りました'])
+  expect(runs).toHaveLength(0)
+
+  await measure($, 90)
+  expect(toasts).toHaveLength(1)
+})
+
+test('alerts again after the window resets and drops below 20% once more', async ($, on) => {
+  const { toasts } = setup(on)
+
+  await measure($, 85)
+  await measure($, 10)
+  await measure($, 85)
+
+  expect(toasts).toHaveLength(2)
+})
+
+test('plays the Windows warning sound where nothing can speak', async ($, on) => {
+  const { toasts, runs } = setup(on, ['terminal'], false)
+
+  await measure($, 85)
+
+  expect(toasts).toHaveLength(1)
+  expect(runs).toHaveLength(1)
+  expect(runs[0]?.[0]).toBe('powershell')
 })

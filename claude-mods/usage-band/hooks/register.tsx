@@ -4,6 +4,7 @@ import type { EngineInterface, Register, SessionRateLimit } from 'claude-code'
 import type { UsageWindow } from '../types'
 
 const windows = atom({ plugin: 'usage-band', key: 'windows' } as const, null)
+const alerted = atom({ plugin: 'usage-band', key: 'alerted' } as const, {})
 
 const LABELS: Record<string, string> = {
   five_hour: '5時間',
@@ -17,6 +18,9 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 // 帯の幅がこれより狭いときはバーを半分の長さにして、1行に収める
 const WIDE_COLUMNS = 80
+
+// 残量がこの値(%)を下回ったら、トーストと音で一度だけ知らせる
+const ALERT_BELOW = 20
 
 const remainingOf = (w: UsageWindow) =>
   Math.min(100, Math.max(0, Math.round((100 - w.percentUsed) * 10) / 10))
@@ -77,10 +81,52 @@ const drawsBand = async ($: EngineInterface) =>
 const pinStatus = async ($: EngineInterface, list: readonly UsageWindow[]) =>
   $.ui.status((await drawsBand($)) ? undefined : lineOf(list, await $.clock.now(), ' ｜ '))
 
-const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[]) => {
-  const list = await update($, windows, () => rateLimits.map(w => ({ ...w })))
+// 読み上げのない環境（Windows のターミナルなど）では、Windows の警告音に切り替える
+const sound = async ($: EngineInterface, text: string) => {
+  try {
+    await $.audio.speak(text)
+  } catch {
+    await $.process
+      .run([
+        'powershell',
+        '-NoProfile',
+        '-Command',
+        '[System.Media.SystemSounds]::Exclamation.Play(); Start-Sleep -Milliseconds 1500',
+      ])
+      .catch(() => undefined)
+  }
+}
 
-  await pinStatus($, list ?? [])
+// しきい値を下回った枠を一度だけ知らせる。リセットで回復したら、次に下回ったときにまた知らせる
+const alertLow = async ($: EngineInterface, list: readonly UsageWindow[]) => {
+  const before = await read($, alerted)
+  const fresh = list.filter(w => remainingOf(w) < ALERT_BELOW && !before[w.kind])
+
+  await update($, alerted, () => Object.fromEntries(list.map(w => [w.kind, remainingOf(w) < ALERT_BELOW])))
+
+  if (fresh.length === 0) {
+    return
+  }
+
+  const now = await $.clock.now()
+  const labels = fresh.map(w => LABELS[w.kind] ?? w.kind)
+
+  // トーストは同じプラグインの前のものと入れ替わるので、下回った枠を1つにまとめる
+  $.ui.toast(
+    `⚠ 残量が${ALERT_BELOW}%を切りました：${fresh
+      .map((w, i) => `${labels[i]} 残り${Math.round(remainingOf(w))}%${recoveryOf(w, now)}`)
+      .join(' ｜ ')}`,
+    { timeoutMs: 10_000 },
+  )
+  // 読み上げを待つと残量の更新が止まるので、待たずに鳴らす
+  void sound($, `${labels.map(l => `${l}枠`).join('と')}の残りが${ALERT_BELOW}パーセントを切りました`)
+}
+
+const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[]) => {
+  const list = (await update($, windows, () => rateLimits.map(w => ({ ...w })))) ?? []
+
+  await pinStatus($, list)
+  await alertLow($, list)
 }
 
 export const register: Register = on => {
