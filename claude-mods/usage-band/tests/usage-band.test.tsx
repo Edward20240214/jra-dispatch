@@ -86,12 +86,12 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
 }
 
 // 5時間枠は 2026-10-07 14:30 JST、週間枠は 2026-10-10 09:00 JST にリセット
-const measure = ($: Engine, percentUsed: number, fiveHourResetsAt = '2026-10-07T05:30:00Z') =>
+const measure = ($: Engine, percentUsed: number, fiveHourResetsAt = '2026-10-07T05:30:00Z', weeklyUsed = 45) =>
   $.session.measure({
     context: { window: 200_000 },
     rateLimits: [
       { kind: 'five_hour', percentUsed, resetsAt: fiveHourResetsAt },
-      { kind: 'seven_day', percentUsed: 45, resetsAt: '2026-10-10T00:00:00Z' },
+      { kind: 'seven_day', percentUsed: weeklyUsed, resetsAt: '2026-10-10T00:00:00Z' },
     ],
     changed: ['rateLimits'],
   })
@@ -211,8 +211,9 @@ test('on the terminal, leaves the status line and the answer alone', async ($, o
   expect((await completeTurn($)).text).toBe('done')
 })
 
-const ALERT = '5時間枠の残りが、20パーセントを切りました。'
-const TEST_SPEECH = '通知のテストです。残量が20パーセントを切ると、このようにお知らせします。'
+const ALERT = '5時間枠の残りが、20パーセントを切りましたよ。14時30分に回復します。'
+// 残量をまだ取得していないときのテストの読み上げ
+const TEST_SPEECH = 'テストです。残量が20パーセントを切ると、このようにお知らせします。'
 
 test('alerts once, with a toast and speech, when a window drops below 20%', async ($, on) => {
   const { clock, toasts, spoken } = setup(on)
@@ -272,7 +273,7 @@ test('the test command shows the toast and reports VOICEVOX', async ($, on) => {
   const { text } = await runTestCommand($)
 
   expect(toasts).toEqual(['【テスト】残量が20%を切ると、このように知らせます（今の残量：5時間 94% ｜ 週間 55%）'])
-  expect(voiceScripts).toEqual([{ text: TEST_SPEECH, voice: '冥鳴ひまり' }])
+  expect(voiceScripts).toEqual([{ text: `テストです。${ALERT}`, voice: '冥鳴ひまり' }])
   expect(text).toBe('テスト通知：トーストと VOICEVOX（冥鳴ひまり）の声で知らせました。')
 })
 
@@ -322,5 +323,36 @@ test('starts PowerShell by its full path from the temp folder, wherever Claude C
       executable: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
       cwd: 'C:\\Users\\kenichi\\AppData\\Local\\Temp',
     },
+  ])
+})
+
+test('calls the person by the name in the settings, without doubling さん', { options: { name: 'けんいちさん' } }, async ($, on) => {
+  const { clock, spoken } = setup(on)
+
+  await measure($, 85)
+  await clock.settle()
+
+  expect(spoken).toEqual([`けんいちさん、${ALERT}`])
+})
+
+test('says 明日の for a recovery tomorrow', async ($, on) => {
+  const { clock, spoken } = setup(on)
+
+  // 2026-10-08 01:20 JST
+  await measure($, 85, '2026-10-07T16:20:00Z')
+  await clock.settle()
+
+  expect(spoken).toEqual(['5時間枠の残りが、20パーセントを切りましたよ。明日の1時20分に回復します。'])
+})
+
+test('names each window and its recovery when both drop below 20% together', async ($, on) => {
+  const { clock, spoken, toasts } = setup(on)
+
+  await measure($, 85, '2026-10-07T05:30:00Z', 90)
+  await clock.settle()
+
+  expect(toasts).toEqual(['⚠ 残量が20%を切りました：5時間 残り15% 14:30回復 ｜ 週間 残り10% 10/10 9:00回復'])
+  expect(spoken).toEqual([
+    '5時間枠と週間枠の残りが、20パーセントを切りましたよ。5時間枠は14時30分、週間枠は10月10日の9時に回復します。',
   ])
 })

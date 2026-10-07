@@ -34,7 +34,8 @@ const barOf = (remaining: number, cells: number) => {
   return '█'.repeat(filled) + '░'.repeat(cells - filled)
 }
 
-const formatReset = (resetsAt: string | undefined, now: number) => {
+// リセット時刻を日本時間に直す。days は今日から何日後か
+const jstOf = (resetsAt: string | undefined, now: number) => {
   const at = resetsAt === undefined ? NaN : Date.parse(resetsAt)
 
   if (Number.isNaN(at)) {
@@ -43,13 +44,43 @@ const formatReset = (resetsAt: string | undefined, now: number) => {
 
   const local = new Date(at + JST_OFFSET_MS)
   const today = new Date(now + JST_OFFSET_MS)
-  const time = `${local.getUTCHours()}:${String(local.getUTCMinutes()).padStart(2, '0')}`
-  const days =
-    (Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) -
-      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())) /
-    DAY_MS
 
-  return days === 0 ? time : days === 1 ? `明日${time}` : `${local.getUTCMonth() + 1}/${local.getUTCDate()} ${time}`
+  return {
+    month: local.getUTCMonth() + 1,
+    date: local.getUTCDate(),
+    hours: local.getUTCHours(),
+    minutes: local.getUTCMinutes(),
+    days:
+      (Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) -
+        Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())) /
+      DAY_MS,
+  }
+}
+
+// 表示用の回復時刻（「1:20」「明日1:20」「10/14 21:00」）
+const formatReset = (resetsAt: string | undefined, now: number) => {
+  const t = jstOf(resetsAt, now)
+
+  if (t === undefined) {
+    return undefined
+  }
+
+  const time = `${t.hours}:${String(t.minutes).padStart(2, '0')}`
+
+  return t.days === 0 ? time : t.days === 1 ? `明日${time}` : `${t.month}/${t.date} ${time}`
+}
+
+// 読み上げ用の回復時刻（「1時20分」「明日の1時20分」「10月14日の21時」）
+const spokenResetOf = (resetsAt: string | undefined, now: number) => {
+  const t = jstOf(resetsAt, now)
+
+  if (t === undefined) {
+    return undefined
+  }
+
+  const time = t.minutes === 0 ? `${t.hours}時` : `${t.hours}時${t.minutes}分`
+
+  return t.days === 0 ? time : t.days === 1 ? `明日の${time}` : `${t.month}月${t.date}日の${time}`
 }
 
 const recoveryOf = (w: UsageWindow, now: number) => {
@@ -187,6 +218,24 @@ const sound = async ($: EngineInterface, text: string, voice: string): Promise<V
 
 const DEFAULT_VOICE = '冥鳴ひまり'
 
+// 読み上げの声（VOICEVOX）と、呼びかける名前（空なら呼びかけない）
+type Speech = { voice: string; name: string }
+
+const callOf = (name: string) => (name === '' ? '' : `${name}さん、`)
+
+// 「けんいちさん、5時間枠の残りが、20パーセントを切りましたよ。1時20分に回復します。」
+const alertSpeechOf = (low: readonly UsageWindow[], now: number, name: string) => {
+  const frames = low.map(w => `${LABELS[w.kind] ?? w.kind}枠`)
+  const times = low.map(w => spokenResetOf(w.resetsAt, now))
+  const recovery = times.some(t => t === undefined)
+    ? ''
+    : low.length === 1
+      ? `${times[0]}に回復します。`
+      : `${frames.map((f, i) => `${f}は${times[i]}`).join('、')}に回復します。`
+
+  return `${callOf(name)}${frames.join('と')}の残りが、${ALERT_BELOW}パーセントを切りましたよ。${recovery}`
+}
+
 const reportOf = (via: Via, voice: string) =>
   ({
     voicevox: `トーストと VOICEVOX（${voice}）の声で知らせました。`,
@@ -196,7 +245,7 @@ const reportOf = (via: Via, voice: string) =>
   })[via]
 
 // しきい値を下回った枠を一度だけ知らせる。リセットで回復したら、次に下回ったときにまた知らせる
-const alertLow = async ($: EngineInterface, list: readonly UsageWindow[], voice: string) => {
+const alertLow = async ($: EngineInterface, list: readonly UsageWindow[], speech: Speech) => {
   const before = await read($, alerted)
   const fresh = list.filter(w => remainingOf(w) < ALERT_BELOW && !before[w.kind])
 
@@ -217,18 +266,21 @@ const alertLow = async ($: EngineInterface, list: readonly UsageWindow[], voice:
     { timeoutMs: 10_000 },
   )
   // 読み上げを待つと残量の更新が止まるので、待たずに鳴らす
-  void sound($, `${labels.map(l => `${l}枠`).join('と')}の残りが、${ALERT_BELOW}パーセントを切りました。`, voice)
+  void sound($, alertSpeechOf(fresh, now, speech.name), speech.voice)
 }
 
-const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[], voice: string) => {
+const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[], speech: Speech) => {
   const list = (await update($, windows, () => rateLimits.map(w => ({ ...w })))) ?? []
 
   await pinStatus($, list)
-  await alertLow($, list, voice)
+  await alertLow($, list, speech)
 }
 
 export const register: Register = (on, options) => {
   const voice = typeof options.voice === 'string' && options.voice !== '' ? options.voice : DEFAULT_VOICE
+  // 「けんいちさん」と書かれていても「さん」が重ならないようにする
+  const name = typeof options.name === 'string' ? options.name.trim().replace(/さん$/, '') : ''
+  const speech: Speech = { voice, name }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -241,7 +293,7 @@ export const register: Register = (on, options) => {
 
     // 再読み込み時に、前回の値を空の読み取りで消さない
     if (rateLimits.length > 0) {
-      await save($, rateLimits, voice)
+      await save($, rateLimits, speech)
     } else {
       await pinStatus($, (await read($, windows)) ?? [])
     }
@@ -259,14 +311,20 @@ export const register: Register = (on, options) => {
       { timeoutMs: 10_000 },
     )
 
-    const via = await sound($, `通知のテストです。残量が${ALERT_BELOW}パーセントを切ると、このようにお知らせします。`, voice)
+    // 今の残量があれば、最初の枠が下回ったときの本番の言い回しで読み上げる
+    const first = list[0]
+    const text =
+      first === undefined
+        ? `テストです。${callOf(name)}残量が${ALERT_BELOW}パーセントを切ると、このようにお知らせします。`
+        : `テストです。${alertSpeechOf([first], await $.clock.now(), name)}`
+    const via = await sound($, text, voice)
 
     return { text: `テスト通知：${reportOf(via, voice)}` }
   })
 
   on('session.measure', async ($, e, next) => {
     if (e.changed.includes('rateLimits')) {
-      await save($, e.rateLimits, voice)
+      await save($, e.rateLimits, speech)
     }
 
     return next(e)
