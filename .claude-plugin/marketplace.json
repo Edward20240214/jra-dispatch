@@ -1,0 +1,5 @@
+{
+  "name": "jra-dispatch-mods",
+  "owner": { "name": "Edward20240214" },
+  "plugins": [{ "name": "usage-band", "source": "./claude-mods/usage-band" }]
+}
