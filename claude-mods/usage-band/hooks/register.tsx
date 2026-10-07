@@ -93,15 +93,33 @@ const encodePowerShell = (script: string) => {
   return btoa(bytes)
 }
 
-// PowerShell の終了コード。PowerShell がない環境（Windows 以外）では undefined
-const powershell = ($: EngineInterface, script: string, env?: Record<string, string>) =>
-  $.process
-    .run(['powershell', '-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(script)], {
-      timeoutMs: 90_000,
-      ...(env === undefined ? {} : { env }),
-    })
+// PowerShell の終了コード。Windows 以外、または起動できなかったときは undefined。
+// PowerShell 本体のフォルダ（C:\WINDOWS\System32\WindowsPowerShell\v1.0）で Claude Code を起動していると、
+// 名前だけの powershell はそのフォルダから見つかり、安全のため実行を止められる。
+// そのため絶対パスで呼び、作業フォルダも TEMP に移す
+const powershell = async ($: EngineInterface, script: string, env?: Record<string, string>) => {
+  const systemRoot = await $.env.get('SystemRoot')
+
+  if (systemRoot === undefined) {
+    return undefined
+  }
+
+  const temp = await $.env.get('TEMP')
+
+  return $.process
+    .run(
+      [
+        `${systemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`,
+        '-NoProfile',
+        '-NonInteractive',
+        '-EncodedCommand',
+        encodePowerShell(script),
+      ],
+      { cwd: temp ?? systemRoot, timeoutMs: 90_000, ...(env === undefined ? {} : { env }) },
+    )
     .then(r => r.exitCode)
     .catch(() => undefined)
+}
 
 const SPOKE_VOICEVOX = 10
 const SPOKE_WINDOWS = 11
