@@ -22,6 +22,17 @@ Claude Code の入力欄の上に、レート制限の残り使用量を表示�
 
 `Add marketplace?` に `y`、スコープはユーザーを選んで Enter です。
 
+この種類の MOD（関数フックのプラグイン）は先行公開の機能で、最初はオフになっています。
+インストールしただけでは読み込まれないので、環境変数 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` を設定してください。
+Windows の PowerShell なら次の1行です（設定後は PowerShell とデスクトップアプリを起動し直します）:
+
+```
+[Environment]::SetEnvironmentVariable("CLAUDE_CODE_ENABLE_FUNCTION_HOOKS", "1", "User")
+```
+
+`~/.claude/settings.json` の `env` に `"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1"` を書いても同じです。
+オフのままだと、`claude --debug` のログに `hooks modules are not turned on for installed plugins` と出ます。
+
 取り込む前に試すときは、リポジトリを手元に置いて:
 
 ```
