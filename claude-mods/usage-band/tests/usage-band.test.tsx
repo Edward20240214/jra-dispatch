@@ -51,6 +51,8 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
   const files = new Map<string, string>()
   const locked = new Set<string>()
   const opens: (string | undefined)[] = []
+  // set a message to make the copy fail, as PowerShell reports it
+  const openFailure: { message?: string } = {}
 
   const clock = mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
   mock.store(on)
@@ -89,9 +91,12 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
     if (log !== undefined) {
       opens.push(log)
 
-      const exitCode = [...files.keys()].some(path => path.endsWith(log)) ? 0 : 3
+      const exitCode =
+        openFailure.message !== undefined ? 1 : [...files.keys()].some(path => path.endsWith(log)) ? 0 : 3
 
-      return { value: { exitCode, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+      return {
+        value: { exitCode, stdout: openFailure.message ?? '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
+      }
     }
 
     // the voice script carries its text in the environment; the warning sound carries none
@@ -125,7 +130,7 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
   on('fs.exists', ($, e) => ({ value: files.has(e.path) }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
 
-  return { clock, statuses, toasts, spoken, voiceScripts, beeps, launches, files, locked, opens }
+  return { clock, statuses, toasts, spoken, voiceScripts, beeps, launches, files, locked, opens, openFailure }
 }
 
 // 5時間枠は 2026-10-07 14:30 JST、週間枠は 2026-10-10 09:00 JST にリセット
@@ -510,4 +515,15 @@ test('/usage-band-open says when there is no log yet', async ($, on) => {
   const { text } = await runOpenCommand($)
 
   expect(text).toBe('まだ今月の記録ファイルがありません。残量が変わると記録が始まります。')
+})
+
+test('/usage-band-open says why the copy could not be opened', async ($, on) => {
+  const { openFailure } = setup(on, ['terminal'], 'windows-voicevox')
+
+  await measure($, 10)
+  openFailure.message = 'アクセスが拒否されました。'
+
+  const { text } = await runOpenCommand($)
+
+  expect(text).toBe(`記録のコピーを開けませんでした（理由：アクセスが拒否されました。）。記録ファイル：${LOG_PATH}`)
 })

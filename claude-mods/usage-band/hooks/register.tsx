@@ -124,11 +124,11 @@ const encodePowerShell = (script: string) => {
   return btoa(bytes)
 }
 
-// PowerShell の終了コード。Windows 以外、または起動できなかったときは undefined。
+// PowerShell の終了コードと標準出力。Windows 以外、または起動できなかったときは undefined。
 // PowerShell 本体のフォルダ（C:\WINDOWS\System32\WindowsPowerShell\v1.0）で Claude Code を起動していると、
 // 名前だけの powershell はそのフォルダから見つかり、安全のため実行を止められる。
 // そのため絶対パスで呼び、作業フォルダも TEMP に移す
-const powershell = async ($: EngineInterface, script: string, env?: Record<string, string>) => {
+const runPowerShell = async ($: EngineInterface, script: string, env?: Record<string, string>) => {
   const systemRoot = await $.env.get('SystemRoot')
 
   if (systemRoot === undefined) {
@@ -148,9 +148,12 @@ const powershell = async ($: EngineInterface, script: string, env?: Record<strin
       ],
       { cwd: temp ?? systemRoot, timeoutMs: 90_000, ...(env === undefined ? {} : { env }) },
     )
-    .then(r => r.exitCode)
+    .then(r => ({ exitCode: r.exitCode, stdout: r.stdout }))
     .catch(() => undefined)
 }
+
+const powershell = async ($: EngineInterface, script: string, env?: Record<string, string>) =>
+  (await runPowerShell($, script, env))?.exitCode
 
 const SPOKE_VOICEVOX = 10
 const SPOKE_WINDOWS = 11
@@ -374,20 +377,34 @@ const appendLog = async ($: EngineInterface, list: readonly UsageWindow[]) => {
   }
 }
 
-// 記録のコピーを TEMP に作って Excel で開く。元のファイルは開かないので、記録は止まらない。
-// 終わり方: 0 = Excel で開いた、4 = Excel がなく既定のアプリで開いた、3 = 記録ファイルがない
+// 記録のコピーを TEMP\usage-band に作って Excel で開く。元のファイルは開かないので、記録は止まらない。
+// 前に開いたコピーを Excel で開いたままでもぶつからないよう、コピーには毎回、開いた日時を付けた名前を付ける。
+// 閉じてある古いコピーは片づける（開いているものは消せないので、そのまま残る）。
+// 失敗したら理由を UTF-8 のバイト列のまま書き出す（画面の文字コードに左右されないように）。終わり方: 0 = Excel で開いた、4 = 既定のアプリで開いた、3 = 記録ファイルがない、1 = 失敗
 const OPEN_COPY = `
 $ErrorActionPreference = 'Stop'
-$src = $env:USAGE_BAND_LOG
-if (-not (Test-Path $src)) { exit 3 }
-$dst = Join-Path $env:TEMP (Split-Path $src -Leaf)
-Copy-Item $src $dst -Force
 try {
-  Start-Process excel -ArgumentList ('"' + $dst + '"')
-  exit 0
+  $src = $env:USAGE_BAND_LOG
+  if (-not (Test-Path $src)) { exit 3 }
+  $dir = Join-Path $env:TEMP 'usage-band'
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  Get-ChildItem -Path $dir -Filter '*.csv' | Remove-Item -ErrorAction SilentlyContinue
+  $name = [IO.Path]::GetFileNameWithoutExtension($src) + '_' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.csv'
+  $dst = Join-Path $dir $name
+  Copy-Item -Path $src -Destination $dst
+  try {
+    Start-Process excel -ArgumentList ('"' + $dst + '"')
+    exit 0
+  } catch {
+    Invoke-Item $dst
+    exit 4
+  }
 } catch {
-  Invoke-Item $dst
-  exit 4
+  $bytes = [Text.Encoding]::UTF8.GetBytes($_.Exception.Message)
+  $out = [Console]::OpenStandardOutput()
+  $out.Write($bytes, 0, $bytes.Length)
+  $out.Flush()
+  exit 1
 }
 `
 
@@ -497,13 +514,19 @@ export const register: Register = (on, options) => {
       await (Object.keys(left).length === 0 ? $.store.delete(PENDING_KEY) : $.store.set(PENDING_KEY, left))
     }
 
-    const opened = await powershell($, OPEN_COPY, { USAGE_BAND_LOG: path })
+    const opened = await runPowerShell($, OPEN_COPY, { USAGE_BAND_LOG: path })
 
     if (opened === undefined) {
       return { text: `この機能は Windows 用です。記録ファイル：${path}` }
     }
 
-    return { text: OPEN_REPORTS[opened] ?? `記録のコピーを開けませんでした。記録ファイル：${path}` }
+    const reason = opened.stdout.trim().slice(0, 300)
+
+    return {
+      text:
+        OPEN_REPORTS[opened.exitCode] ??
+        `記録のコピーを開けませんでした${reason === '' ? '' : `（理由：${reason}）`}。記録ファイル：${path}`,
+    }
   })
 
   on('session.measure', async ($, e, next) => {
