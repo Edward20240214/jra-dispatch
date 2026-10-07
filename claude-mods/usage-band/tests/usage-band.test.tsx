@@ -18,13 +18,20 @@ const props = (bodyColumns = 100, hasSurvey = false) => ({
 })
 
 // 2026-10-07 12:00 JST; what the engine answers beneath the plugin
-const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], canSpeak = true) => {
+// voices: whether Claude Code's own speech works, and whether Windows has a Japanese voice
+const setup = (
+  on: On,
+  surfaces: readonly RenderSurface[] = ['terminal'],
+  voices: { engine?: boolean; windows?: boolean } = {},
+) => {
+  const { engine = true, windows = true } = voices
   const statuses: (string | undefined)[] = []
   const toasts: string[] = []
   const spoken: string[] = []
-  const runs: (readonly string[])[] = []
+  const windowsSpoken: (string | undefined)[] = []
+  const beeps: string[] = []
 
-  mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
+  const clock = mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
   on('session.measure', ($, e) => ({ changed: e.changed }))
   on('session.surfaces', () => ({ value: surfaces }))
   on('ui.status', ($, e) => {
@@ -38,7 +45,7 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], canSpe
     return { value: undefined }
   })
   on('audio.speak', ($, e) => {
-    if (!canSpeak) {
+    if (!engine) {
       return { deny: 'no synthesizer' }
     }
 
@@ -47,13 +54,22 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], canSpe
     return { value: { via: 'system' as const } }
   })
   on('process.run', ($, e) => {
-    runs.push(e.argv)
+    const isSpeech = e.argv.join(' ').includes('System.Speech')
 
-    return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    if (isSpeech && windows) {
+      windowsSpoken.push(e.init?.env?.USAGE_BAND_SPEECH)
+    } else if (!isSpeech) {
+      beeps.push(e.argv.join(' '))
+    }
+
+    // 日本語の声がないとき、読み上げのスクリプトは 2 で終わる
+    const exitCode = isSpeech && !windows ? 2 : 0
+
+    return { value: { exitCode, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('turn.complete', ($, e) => ({ text: e.answer }))
 
-  return { statuses, toasts, spoken, runs }
+  return { clock, statuses, toasts, spoken, windowsSpoken, beeps }
 }
 
 // 5時間枠は 2026-10-07 14:30 JST、週間枠は 2026-10-10 09:00 JST にリセット
@@ -183,7 +199,7 @@ test('on the terminal, leaves the status line and the answer alone', async ($, o
 })
 
 test('alerts once, with a toast and speech, when a window drops below 20%', async ($, on) => {
-  const { toasts, spoken, runs } = setup(on)
+  const { toasts, spoken, windowsSpoken, beeps } = setup(on)
 
   await measure($, 70)
   expect(toasts).toHaveLength(0)
@@ -191,7 +207,8 @@ test('alerts once, with a toast and speech, when a window drops below 20%', asyn
   await measure($, 85)
   expect(toasts).toEqual(['⚠ 残量が20%を切りました：5時間 残り15% 14:30回復'])
   expect(spoken).toEqual(['5時間枠の残りが20パーセントを切りました'])
-  expect(runs).toHaveLength(0)
+  expect(windowsSpoken).toHaveLength(0)
+  expect(beeps).toHaveLength(0)
 
   await measure($, 90)
   expect(toasts).toHaveLength(1)
@@ -207,14 +224,28 @@ test('alerts again after the window resets and drops below 20% once more', async
   expect(toasts).toHaveLength(2)
 })
 
-test('plays the Windows warning sound where nothing can speak', async ($, on) => {
-  const { toasts, runs } = setup(on, ['terminal'], false)
+test('speaks with the Windows Japanese voice where Claude Code cannot speak', async ($, on) => {
+  const { clock, toasts, windowsSpoken, beeps } = setup(on, ['terminal'], { engine: false })
 
   await measure($, 85)
+  await clock.settle()
 
   expect(toasts).toHaveLength(1)
-  expect(runs).toHaveLength(1)
-  expect(runs[0]?.[0]).toBe('powershell')
+  expect(windowsSpoken).toEqual(['5時間枠の残りが20パーセントを切りました'])
+  expect(beeps).toHaveLength(0)
+})
+
+test('plays the Windows warning sound where no Japanese voice is installed', async ($, on) => {
+  const { clock, toasts, windowsSpoken, beeps } = setup(on, ['terminal'], { engine: false, windows: false })
+
+  await measure($, 85)
+  // 音は残量の更新を止めないよう待たずに鳴らすので、鳴り終わるまで進める
+  await clock.settle()
+
+  expect(toasts).toHaveLength(1)
+  expect(windowsSpoken).toHaveLength(0)
+  expect(beeps).toHaveLength(1)
+  expect(beeps[0]).toContain('SystemSounds')
 })
 
 test('the test command shows the toast and says it spoke', async ($, on) => {
@@ -229,11 +260,20 @@ test('the test command shows the toast and says it spoke', async ($, on) => {
   expect(text).toBe('テスト通知：トーストと読み上げで知らせました。')
 })
 
-test('the test command says it fell back to the Windows warning sound', async ($, on) => {
-  const { runs } = setup(on, ['terminal'], false)
+test('the test command speaks with the Windows Japanese voice', async ($, on) => {
+  const { windowsSpoken } = setup(on, ['terminal'], { engine: false })
 
   const { text } = await runTestCommand($)
 
-  expect(runs).toHaveLength(1)
-  expect(text).toBe('テスト通知：トーストと Windows の警告音で知らせました（この環境では読み上げが使えないため）。')
+  expect(windowsSpoken).toEqual(['通知のテストです。残量が20パーセントを切ると、このようにお知らせします'])
+  expect(text).toBe('テスト通知：トーストと読み上げで知らせました。')
+})
+
+test('the test command says it fell back to the Windows warning sound', async ($, on) => {
+  const { beeps } = setup(on, ['terminal'], { engine: false, windows: false })
+
+  const { text } = await runTestCommand($)
+
+  expect(beeps).toHaveLength(1)
+  expect(text).toBe('テスト通知：トーストと Windows の警告音で知らせました（日本語の読み上げが使えないため）。')
 })

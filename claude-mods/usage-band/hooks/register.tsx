@@ -81,24 +81,38 @@ const drawsBand = async ($: EngineInterface) =>
 const pinStatus = async ($: EngineInterface, list: readonly UsageWindow[]) =>
   $.ui.status((await drawsBand($)) ? undefined : lineOf(list, await $.clock.now(), ' ｜ '))
 
-// 読み上げのない環境（Windows のターミナルなど）では、Windows の警告音に切り替える。
-// どちらで鳴らしたか（鳴らせなかったか）を返す
+const powershell = ($: EngineInterface, script: readonly string[], env?: Record<string, string>) =>
+  $.process
+    .run(['powershell', '-NoProfile', '-Command', script.join('; ')], env === undefined ? undefined : { env })
+    .then(r => r.exitCode === 0)
+    .catch(() => false)
+
+// Windows に入っている日本語の声で読み上げる。日本語の声がなければ 2 で終わる。
+// 文言は引用符の扱いを気にせずに済むよう、環境変数で渡す
+const WINDOWS_SPEECH = [
+  'Add-Type -AssemblyName System.Speech',
+  '$s = New-Object System.Speech.Synthesis.SpeechSynthesizer',
+  "$v = $s.GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -eq 'ja-JP' } | Select-Object -First 1",
+  'if (-not $v) { exit 2 }',
+  '$s.SelectVoice($v.VoiceInfo.Name)',
+  '$s.Speak($env:USAGE_BAND_SPEECH)',
+]
+
+const WINDOWS_BEEP = ['[System.Media.SystemSounds]::Exclamation.Play()', 'Start-Sleep -Milliseconds 1500']
+
+// Claude Code の読み上げ → Windows の日本語音声 → Windows の警告音の順に試す。
+// どの方法で鳴らしたか（鳴らせなかったか）を返す
 const sound = async ($: EngineInterface, text: string): Promise<'speech' | 'beep' | 'none'> => {
   try {
     await $.audio.speak(text)
 
     return 'speech'
   } catch {
-    const beep = await $.process
-      .run([
-        'powershell',
-        '-NoProfile',
-        '-Command',
-        '[System.Media.SystemSounds]::Exclamation.Play(); Start-Sleep -Milliseconds 1500',
-      ])
-      .catch(() => undefined)
+    if (await powershell($, WINDOWS_SPEECH, { USAGE_BAND_SPEECH: text })) {
+      return 'speech'
+    }
 
-    return beep?.exitCode === 0 ? 'beep' : 'none'
+    return (await powershell($, WINDOWS_BEEP)) ? 'beep' : 'none'
   }
 }
 
@@ -106,7 +120,7 @@ const TEST_COMMAND = 'usage-band-test'
 
 const SOUND_REPORTS = {
   speech: 'トーストと読み上げで知らせました。',
-  beep: 'トーストと Windows の警告音で知らせました（この環境では読み上げが使えないため）。',
+  beep: 'トーストと Windows の警告音で知らせました（日本語の読み上げが使えないため）。',
   none: 'トーストは出しましたが、音は鳴らせませんでした。',
 } as const
 
