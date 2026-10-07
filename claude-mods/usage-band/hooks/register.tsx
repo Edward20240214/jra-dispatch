@@ -310,6 +310,42 @@ const logRowOf = (list: readonly UsageWindow[], now: number) => {
   return `${[jstIsoOf(now), WEEKDAYS[local.getUTCDay()], local.getUTCHours(), ...cells('five_hour'), ...cells('seven_day')].join(',')}\n`
 }
 
+// 書き込めなかった記録の取り置き（ファイルごとの、まだ書いていない行）。$.store は次の起動まで残る
+const PENDING_KEY = 'pendingLog'
+
+type Pending = Record<string, string>
+
+const pendingOf = async ($: EngineInterface): Promise<Pending> => {
+  const stored = await $.store.get(PENDING_KEY)
+
+  return typeof stored === 'object' && stored !== null
+    ? Object.fromEntries(Object.entries(stored).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+    : {}
+}
+
+const rowCountOf = (rows: string) => rows.split('\n').filter(line => line !== '').length
+
+const LOCKED_WARNING =
+  '⚠ 残量の記録ファイルが Excel などで開かれているため、書き込めませんでした。閉じると、たまった分もまとめて書き込みます。中身を見るときは /usage-band-open を使ってください'
+
+// 取り置きの行を書き込む。書けなかったファイルの分は、取り置きのまま返す。
+// 読めないファイルを「まだない」とみなして上書きしないよう、あるかどうかを先に確かめる
+const flushPending = async ($: EngineInterface, pending: Pending) => {
+  const left: Pending = {}
+
+  for (const [path, rows] of Object.entries(pending)) {
+    try {
+      const before = (await $.fs.exists(path)) ? await $.fs.read(path) : LOG_HEADER
+
+      await $.fs.write(path, before + rows)
+    } catch {
+      left[path] = rows
+    }
+  }
+
+  return left
+}
+
 // 記録に失敗しても、表示と通知は止めない
 const appendLog = async ($: EngineInterface, list: readonly UsageWindow[]) => {
   try {
@@ -320,12 +356,45 @@ const appendLog = async ($: EngineInterface, list: readonly UsageWindow[]) => {
       return
     }
 
-    const before = await $.fs.read(path).catch(() => LOG_HEADER)
+    const pending = await pendingOf($)
+    const left = await flushPending($, { ...pending, [path]: (pending[path] ?? '') + logRowOf(list, now) })
 
-    await $.fs.write(path, before + logRowOf(list, now))
+    if (Object.keys(left).length === 0) {
+      if (Object.keys(pending).length > 0) {
+        await $.store.delete(PENDING_KEY)
+      }
+
+      return
+    }
+
+    await $.store.set(PENDING_KEY, left)
+    $.ui.toast(LOCKED_WARNING, { timeoutMs: 15_000 })
   } catch {
     // 記録できなかった分は諦める
   }
+}
+
+// 記録のコピーを TEMP に作って Excel で開く。元のファイルは開かないので、記録は止まらない。
+// 終わり方: 0 = Excel で開いた、4 = Excel がなく既定のアプリで開いた、3 = 記録ファイルがない
+const OPEN_COPY = `
+$ErrorActionPreference = 'Stop'
+$src = $env:USAGE_BAND_LOG
+if (-not (Test-Path $src)) { exit 3 }
+$dst = Join-Path $env:TEMP (Split-Path $src -Leaf)
+Copy-Item $src $dst -Force
+try {
+  Start-Process excel -ArgumentList ('"' + $dst + '"')
+  exit 0
+} catch {
+  Invoke-Item $dst
+  exit 4
+}
+`
+
+const OPEN_REPORTS: Record<number, string> = {
+  0: '記録のコピーを Excel で開きました。元のファイルは開いていないので、見ているあいだも記録は止まりません。',
+  4: 'Excel が見つからなかったため、記録のコピーをいつものアプリで開きました。元のファイルは開いていないので、記録は止まりません。',
+  3: 'まだ今月の記録ファイルがありません。残量が変わると記録が始まります。',
 }
 
 const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[], speech: Speech) => {
@@ -350,6 +419,10 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'usage-band-log',
       description: '残量の記録ファイルの場所と、今月の件数を表示する',
+    })
+    await $.command.register({
+      name: 'usage-band-open',
+      description: '残量の記録のコピーを Excel で開く（記録を止めずに見られる）',
     })
 
     const result = await next(e)
@@ -395,11 +468,42 @@ export const register: Register = (on, options) => {
 
     const rows = await $.fs
       .read(path)
-      .then(text => text.split('\n').filter(line => line !== '').length - 1)
+      .then(text => rowCountOf(text) - 1)
       .catch(() => 0)
-    const state = shouldLog ? '' : '（記録は止めてあります。設定 log を true にすると再開します）'
+    const held = Object.values(await pendingOf($)).reduce((sum, text) => sum + rowCountOf(text), 0)
+    const lines = [
+      `記録ファイル：${path}`,
+      `今月の記録：${rows} 件${shouldLog ? '' : '（記録は止めてあります。設定 log を true にすると再開します）'}`,
+      ...(held === 0 ? [] : [`書き込めずに取り置いている記録：${held} 件（記録ファイルを閉じると、次の記録のときにまとめて書き込みます）`]),
+      '中身を見るときは /usage-band-open を使うと、記録を止めずに見られます。',
+    ]
 
-    return { text: `記録ファイル：${path}\n今月の記録：${rows} 件${state}` }
+    return { text: lines.join('\n') }
+  })
+
+  on('command.run', { command: 'usage-band-open' }, async $ => {
+    const path = await logPathOf($, await $.clock.now())
+
+    if (path === undefined) {
+      return { text: '記録ファイルの置き場所（ホームフォルダ）が分かりませんでした。' }
+    }
+
+    // 取り置きがあれば、先に書き込んでからコピーする
+    const pending = await pendingOf($)
+
+    if (Object.keys(pending).length > 0) {
+      const left = await flushPending($, pending)
+
+      await (Object.keys(left).length === 0 ? $.store.delete(PENDING_KEY) : $.store.set(PENDING_KEY, left))
+    }
+
+    const opened = await powershell($, OPEN_COPY, { USAGE_BAND_LOG: path })
+
+    if (opened === undefined) {
+      return { text: `この機能は Windows 用です。記録ファイル：${path}` }
+    }
+
+    return { text: OPEN_REPORTS[opened] ?? `記録のコピーを開けませんでした。記録ファイル：${path}` }
   })
 
   on('session.measure', async ($, e, next) => {
