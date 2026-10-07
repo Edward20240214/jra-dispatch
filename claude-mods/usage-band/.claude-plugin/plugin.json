@@ -1,6 +1,22 @@
 {
   "name": "usage-band",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "入力欄の上に、レート制限の残り使用量（5時間枠・週間枠）とリセット時刻を表示します",
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "voice": {
+      "type": "string",
+      "title": "読み上げの声（VOICEVOX）",
+      "description": "VOICEVOX が起動しているときに使う声。起動していなければ Windows の標準の声で読み上げます",
+      "default": "冥鳴ひまり",
+      "options": [
+        "冥鳴ひまり",
+        "ずんだもん",
+        "四国めたん",
+        "春日部つむぎ",
+        "青山龍星",
+        "玄野武宏"
+      ]
+    }
+  }
 }
