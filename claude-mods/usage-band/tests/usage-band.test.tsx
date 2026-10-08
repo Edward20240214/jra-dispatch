@@ -53,11 +53,27 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
   const opens: (string | undefined)[] = []
   // set a message to make the copy fail, as PowerShell reports it
   const openFailure: { message?: string } = {}
+  // the clients drawing the session: a test pushes 'mobile' as a phone joins
+  const roster: RenderSurface[] = [...surfaces]
+  const panesOpened: string[] = []
+  const panesClosed: string[] = []
 
   const clock = mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
   mock.store(on)
   on('session.measure', ($, e) => ({ changed: e.changed }))
-  on('session.surfaces', () => ({ value: surfaces }))
+  on('session.surfaces', () => ({ value: [...roster] }))
+  on('ui.open', ($, e) => {
+    panesOpened.push(e.id)
+
+    return { value: { isPlaced: true as const } }
+  })
+  on('ui.close', ($, e) => {
+    panesClosed.push(e.id)
+
+    return { value: undefined }
+  })
+  on('session.attach', ($, e) => ({ clientId: e.clientId }))
+  on('session.detach', ($, e) => ({ clientId: e.clientId }))
   on('ui.status', ($, e) => {
     statuses.push(e.text)
 
@@ -130,7 +146,22 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
   on('fs.exists', ($, e) => ({ value: files.has(e.path) }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
 
-  return { clock, statuses, toasts, spoken, voiceScripts, beeps, launches, files, locked, opens, openFailure }
+  return {
+    clock,
+    statuses,
+    toasts,
+    spoken,
+    voiceScripts,
+    beeps,
+    launches,
+    files,
+    locked,
+    opens,
+    openFailure,
+    roster,
+    panesOpened,
+    panesClosed,
+  }
 }
 
 // 5時間枠は 2026-10-07 14:30 JST、週間枠は 2026-10-10 09:00 JST にリセット
@@ -526,4 +557,84 @@ test('/usage-band-open says why the copy could not be opened', async ($, on) => 
   const { text } = await runOpenCommand($)
 
   expect(text).toBe(`記録のコピーを開けませんでした（理由：アクセスが拒否されました。）。記録ファイル：${LOG_PATH}`)
+})
+
+const paneProps = (bodyColumns = 40) => ({
+  title: '残量',
+  isFocused: false,
+  bodyColumns,
+  placement: 'inline' as const,
+  scroll: { offset: 0, bodyRows: 3 },
+  view: {},
+})
+
+const mountPane = ($: Engine, bodyColumns?: number) =>
+  $.ui.mount({ plugin: 'usage-band', surface: 'mobile', component: 'Pane', requestId: 'usage-band', props: paneProps(bodyColumns) })
+
+const phoneJoins = async ($: Engine, roster: RenderSurface[]) => {
+  roster.push('mobile')
+  await $.session.attach({ surface: 'mobile', clientId: 'phone' })
+}
+
+test('opens the meter pane when the phone joins, one window per line', async ($, on) => {
+  const { roster, panesOpened } = setup(on, [])
+
+  await measure($, 6)
+  await phoneJoins($, roster)
+
+  expect(panesOpened).toEqual(['usage-band'])
+
+  const pane = await mountPane($)
+
+  expect(await pane.find({ text: /^5時間 █████████░ 94% 14:30回復$/ })).toBeDefined()
+  expect(await pane.find({ text: /^週間 ██████░░░░ 55% 10\/10 9:00回復$/ })).toBeDefined()
+  await pane.unmount()
+})
+
+test('halves the bars in a narrow pane', async ($, on) => {
+  setup(on, [])
+  await measure($, 6)
+
+  const pane = await mountPane($, 30)
+
+  expect(await pane.find({ text: /^5時間 █████ 94% 14:30回復$/ })).toBeDefined()
+  await pane.unmount()
+})
+
+test('while the pane shows the meter, leaves the status line and the answers alone', async ($, on) => {
+  const { roster, statuses } = setup(on, [])
+
+  await measure($, 72.5)
+  expect(statuses.at(-1)).toBe(STATUS)
+
+  await phoneJoins($, roster)
+
+  expect(statuses.at(-1)).toBeUndefined()
+  expect((await completeTurn($)).text).toBe('done')
+})
+
+test('closes the pane when the last phone leaves, and the status line comes back', async ($, on) => {
+  const { roster, panesClosed, statuses } = setup(on, [])
+
+  await measure($, 72.5)
+  await phoneJoins($, roster)
+  roster.splice(roster.indexOf('mobile'), 1)
+  await $.session.detach({ surface: 'mobile', clientId: 'phone', reason: 'detach' })
+
+  expect(panesClosed).toEqual(['usage-band'])
+  expect(statuses.at(-1)).toBe(STATUS)
+})
+
+test('/usage-band-pane opens the meter pane', async ($, on) => {
+  const { panesOpened } = setup(on, [])
+
+  const { text } = await $.command.run({
+    command: 'usage-band-pane',
+    args: '',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 40 },
+  })
+
+  expect(panesOpened).toEqual(['usage-band'])
+  expect(text).toBe('残量パネルを開きました。閉じるときは、パネルの閉じる印か Esc キーを使います。')
 })
