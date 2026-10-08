@@ -242,6 +242,16 @@ type Speech = { voice: string; name: string }
 
 const callOf = (name: string) => (name === '' ? '' : `${name}さん、`)
 
+// 設定 name の読み方。「なし」などは呼びかけなし（--config では空にできないため）。
+// 「けんいちさん」と書かれていても「さん」が重ならないようにする
+const NO_NAME = new Set(['なし', '無し', 'ナシ', 'none', 'off', '-'])
+
+const nameOf = (value: unknown) => {
+  const name = typeof value === 'string' ? value.trim().replace(/さん$/, '') : ''
+
+  return NO_NAME.has(name.toLowerCase()) ? '' : name
+}
+
 // 「けんいちさん、5時間枠の残りが、20パーセントを切りましたよ。1時20分に回復します。」
 const alertSpeechOf = (low: readonly UsageWindow[], now: number, name: string) => {
   const frames = low.map(w => `${LABELS[w.kind] ?? w.kind}枠`)
@@ -439,8 +449,7 @@ const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[],
 
 export const register: Register = (on, options) => {
   const voice = typeof options.voice === 'string' && options.voice !== '' ? options.voice : DEFAULT_VOICE
-  // 「けんいちさん」と書かれていても「さん」が重ならないようにする
-  const name = typeof options.name === 'string' ? options.name.trim().replace(/さん$/, '') : ''
+  const name = nameOf(options.name)
   const speech: Speech = { voice, name }
   const shouldLog = options.log !== false
 

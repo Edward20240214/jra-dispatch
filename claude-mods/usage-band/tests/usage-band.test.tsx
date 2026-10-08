@@ -638,3 +638,12 @@ test('/usage-band-pane opens the meter pane', async ($, on) => {
   expect(panesOpened).toEqual(['usage-band'])
   expect(text).toBe('残量パネルを開きました。閉じるときは、パネルの閉じる印か Esc キーを使います。')
 })
+
+test('does not call anyone when the name is set to なし', { options: { name: 'なし' } }, async ($, on) => {
+  const { clock, spoken } = setup(on)
+
+  await measure($, 85)
+  await clock.settle()
+
+  expect(spoken).toEqual([ALERT])
+})
