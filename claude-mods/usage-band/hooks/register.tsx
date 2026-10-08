@@ -452,6 +452,25 @@ const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[],
   await alertLow($, list, speech)
 }
 
+// まだ値を持っていなければ、その場で読む。読み込み直したあとは、窓が1ポイント動くまで知らせが来ないため
+const currentOf = async ($: EngineInterface, speech: Speech) => {
+  const list = (await read($, windows)) ?? []
+
+  if (list.length > 0) {
+    return list
+  }
+
+  const { rateLimits } = await $.session.usage()
+
+  if (rateLimits.length === 0) {
+    return []
+  }
+
+  await save($, rateLimits, speech)
+
+  return (await read($, windows)) ?? []
+}
+
 export const register: Register = (on, options) => {
   const voice = typeof options.voice === 'string' && options.voice !== '' ? options.voice : DEFAULT_VOICE
   const name = nameOf(options.name)
@@ -568,12 +587,15 @@ export const register: Register = (on, options) => {
   })
 
   on('session.measure', async ($, e, next) => {
-    if (e.changed.includes('rateLimits')) {
-      await save($, e.rateLimits, speech)
+    const isMoved = e.changed.includes('rateLimits')
 
-      if (shouldLog) {
-        await appendLog($, e.rateLimits)
-      }
+    // 値をまだ持っていなければ、窓が動いていなくても受け取る（記録は動いたときだけ）
+    if (isMoved || (e.rateLimits.length > 0 && ((await read($, windows)) ?? []).length === 0)) {
+      await save($, e.rateLimits, speech)
+    }
+
+    if (isMoved && shouldLog) {
+      await appendLog($, e.rateLimits)
     }
 
     return next(e)
@@ -587,9 +609,9 @@ export const register: Register = (on, options) => {
       return result
     }
 
-    const list = await read($, windows)
+    const list = await currentOf($, speech)
 
-    if (list === null || list.length === 0) {
+    if (list.length === 0) {
       return result
     }
 
@@ -610,7 +632,7 @@ export const register: Register = (on, options) => {
 
   // 返事の文字はどの画面にも届くので、今の残量をそのまま返す
   on('command.run', { command: 'usage-band-now' }, async $ => {
-    const list = (await read($, windows)) ?? []
+    const list = await currentOf($, speech)
 
     return { text: list.length === 0 ? WAITING_TEXT : lineOf(list, await $.clock.now(), '\n') }
   })
@@ -618,7 +640,7 @@ export const register: Register = (on, options) => {
   // パネルを描かない画面（スマホなど）でも分かるよう、返事に今の残量も添える
   on('command.run', { command: 'usage-band-pane' }, async $ => {
     const opened = await openPane($)
-    const list = (await read($, windows)) ?? []
+    const list = await currentOf($, speech)
 
     return {
       text: [
