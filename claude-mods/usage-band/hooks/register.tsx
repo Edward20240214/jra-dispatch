@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, SessionRateLimit } from 'claude-code'
+import type { EngineInterface, Register, SessionRateLimit, TurnUsage } from 'claude-code'
 
 import type { UsageWindow } from '../types'
 
@@ -312,9 +312,18 @@ const alertLow = async ($: EngineInterface, list: readonly UsageWindow[], speech
 
 // 残量の記録: 残量が変わるたびに1行、ホームフォルダの .claude/usage-band/usage-log-YYYY-MM.csv に足していく。
 // 列名と値は ASCII だけにして、Excel でも R や pandas でもそのまま開けるようにする
+const LOG_PREFIX = 'usage-log'
 const LOG_HEADER =
   'timestamp_jst,weekday,hour,five_hour_used_pct,five_hour_resets_jst,seven_day_used_pct,seven_day_resets_jst\n'
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+// ローカルの回答の記録: このパソコンの Claude Code が1回答えるごとに1行、使ったトークン数を turn-log-YYYY-MM.csv に足す。
+// 枠はクラウドやチャットとも共有なので、残量の記録と突き合わせて、ローカルの分とそれ以外を分けるのに使う
+const TURN_PREFIX = 'turn-log'
+const TURN_HEADER =
+  'timestamp_jst,weekday,hour,agent,model,input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens\n'
+
+const headerOf = (path: string) => (path.includes(TURN_PREFIX) ? TURN_HEADER : LOG_HEADER)
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -325,7 +334,7 @@ const jstIsoOf = (ms: number) => {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}+09:00`
 }
 
-const logPathOf = async ($: EngineInterface, now: number) => {
+const logPathOf = async ($: EngineInterface, now: number, prefix = LOG_PREFIX) => {
   const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME'))
 
   if (home === undefined) {
@@ -336,7 +345,7 @@ const logPathOf = async ($: EngineInterface, now: number) => {
   // Windows のホーム（C:\Users\...）なら \ で、それ以外は / でつなぐ
   const sep = home.includes('\\') ? '\\' : '/'
 
-  return [home, '.claude', 'usage-band', `usage-log-${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}.csv`].join(sep)
+  return [home, '.claude', 'usage-band', `${prefix}-${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}.csv`].join(sep)
 }
 
 const logRowOf = (list: readonly UsageWindow[], now: number) => {
@@ -349,6 +358,24 @@ const logRowOf = (list: readonly UsageWindow[], now: number) => {
   }
 
   return `${[jstIsoOf(now), WEEKDAYS[local.getUTCDay()], local.getUTCHours(), ...cells('five_hour'), ...cells('seven_day')].join(',')}\n`
+}
+
+// agent: main = 会話そのものの回答、sub = サブエージェントの回答
+const turnRowOf = (usage: TurnUsage, isSubagent: boolean, now: number) => {
+  const local = new Date(now + JST_OFFSET_MS)
+
+  return `${[
+    jstIsoOf(now),
+    WEEKDAYS[local.getUTCDay()],
+    local.getUTCHours(),
+    isSubagent ? 'sub' : 'main',
+    // モデル名にカンマは入らないが、念のため列がずれないようにする
+    usage.model.replaceAll(',', ' '),
+    usage.input_tokens,
+    usage.output_tokens,
+    usage.cache_read_input_tokens,
+    usage.cache_creation_input_tokens,
+  ].join(',')}\n`
 }
 
 // 書き込めなかった記録の取り置き（ファイルごとの、まだ書いていない行）。$.store は次の起動まで残る
@@ -376,7 +403,7 @@ const flushPending = async ($: EngineInterface, pending: Pending) => {
 
   for (const [path, rows] of Object.entries(pending)) {
     try {
-      const before = (await $.fs.exists(path)) ? await $.fs.read(path) : LOG_HEADER
+      const before = (await $.fs.exists(path)) ? await $.fs.read(path) : headerOf(path)
 
       await $.fs.write(path, before + rows)
     } catch {
@@ -387,18 +414,18 @@ const flushPending = async ($: EngineInterface, pending: Pending) => {
   return left
 }
 
-// 記録に失敗しても、表示と通知は止めない
-const appendLog = async ($: EngineInterface, list: readonly UsageWindow[]) => {
+// 今月のファイルに1行足す。Excel などで開かれていて書けなければ、取り置いて知らせる。記録に失敗しても、表示と通知は止めない
+const appendRow = async ($: EngineInterface, prefix: string, rowOf: (now: number) => string) => {
   try {
     const now = await $.clock.now()
-    const path = await logPathOf($, now)
+    const path = await logPathOf($, now, prefix)
 
-    if (path === undefined || list.length === 0) {
+    if (path === undefined) {
       return
     }
 
     const pending = await pendingOf($)
-    const left = await flushPending($, { ...pending, [path]: (pending[path] ?? '') + logRowOf(list, now) })
+    const left = await flushPending($, { ...pending, [path]: (pending[path] ?? '') + rowOf(now) })
 
     if (Object.keys(left).length === 0) {
       if (Object.keys(pending).length > 0) {
@@ -414,6 +441,15 @@ const appendLog = async ($: EngineInterface, list: readonly UsageWindow[]) => {
     // 記録できなかった分は諦める
   }
 }
+
+const appendLog = async ($: EngineInterface, list: readonly UsageWindow[]) => {
+  if (list.length > 0) {
+    await appendRow($, LOG_PREFIX, now => logRowOf(list, now))
+  }
+}
+
+const appendTurn = ($: EngineInterface, usage: TurnUsage, isSubagent: boolean) =>
+  appendRow($, TURN_PREFIX, now => turnRowOf(usage, isSubagent, now))
 
 // 記録のコピーを TEMP\usage-band に作って Excel で開く。元のファイルは開かないので、記録は止まらない。
 // 前に開いたコピーを Excel で開いたままでもぶつからないよう、コピーには毎回、開いた日時を付けた名前を付ける。
@@ -605,20 +641,25 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'usage-band-log' }, async $ => {
-    const path = await logPathOf($, await $.clock.now())
+    const now = await $.clock.now()
+    const path = await logPathOf($, now)
+    const turnPath = await logPathOf($, now, TURN_PREFIX)
 
-    if (path === undefined) {
+    if (path === undefined || turnPath === undefined) {
       return { text: '記録ファイルの置き場所（ホームフォルダ）が分かりませんでした。' }
     }
 
-    const rows = await $.fs
-      .read(path)
-      .then(text => rowCountOf(text) - 1)
-      .catch(() => 0)
+    // 見出しの行を除いた件数。ファイルがまだなければ 0 件
+    const rowsOf = (file: string) =>
+      $.fs
+        .read(file)
+        .then(text => rowCountOf(text) - 1)
+        .catch(() => 0)
     const held = Object.values(await pendingOf($)).reduce((sum, text) => sum + rowCountOf(text), 0)
     const lines = [
       `記録ファイル：${path}`,
-      `今月の記録：${rows} 件${shouldLog ? '' : '（記録は止めてあります。設定 log を true にすると再開します）'}`,
+      `今月の記録：${await rowsOf(path)} 件${shouldLog ? '' : '（記録は止めてあります。設定 log を true にすると再開します）'}`,
+      `ローカルの回答の記録：${turnPath}（今月 ${await rowsOf(turnPath)} 件）`,
       ...(held === 0 ? [] : [`書き込めずに取り置いている記録：${held} 件（記録ファイルを閉じると、次の記録のときにまとめて書き込みます）`]),
       '中身を見るときは /usage-band-open を使うと、記録を止めずに見られます。',
     ]
@@ -670,6 +711,11 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
+
+    // 使ったトークンを回答ごとに記録する（サブエージェントや中断した回答の分も、枠を使っているので残す）
+    if (shouldLog && e.usage !== undefined) {
+      await appendTurn($, e.usage, e.agentId !== undefined)
+    }
 
     // スマホがつながっているあいだは、パソコンの画面に帯が出ていても回答の下に添える
     if (e.agentId !== undefined || e.reason !== 'answer' || ((await isShown($)) && !(await hasPhone($)))) {
