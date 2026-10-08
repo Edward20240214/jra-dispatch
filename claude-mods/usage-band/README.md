@@ -8,11 +8,12 @@ Claude Code の入力欄の上に、レート制限の残り使用量を表示�
 
 - 残量が 50% 以上は緑、20〜50% は黄、20% 未満は赤で表示します
 - 残量が 20% を切ったら、トースト（画面の隅に出るお知らせ）と読み上げで一度だけ知らせます。リセットで回復したあと、また 20% を切ったら再び知らせます
+- 残量が 50% を切ったときは、トーストだけで軽く知らせます（声は出しません）。枠ごとに1回で、Claude Code をいくつ開いていても、起動し直しても重ねて出しません。一気に 20% を切ったときは、声つきの知らせだけにします
 - 読み上げは、自然な声から順に試します: [VOICEVOX](https://voicevox.hiroshiba.jp/)（起動しているとき）→ Windows に入っている日本語の声 → Claude Code の読み上げ（macOS など）→ Windows の警告音
 - 読み上げは「けんいちさん、5時間枠の残りが、20パーセントを切りましたよ。1時20分に回復します。」のように、名前で呼びかけて回復時刻も伝えます。呼びかける名前は設定 `name` で決めます（読み間違いを防ぐため、ひらがながおすすめ）。呼びかけをやめるときは `--config name=なし` にします（`--config` では空にできないため）
 - 設定は PowerShell などで `claude plugin install usage-band@jra-dispatch-mods --config name=けんいち` のように変えられます（`voice` も同じ書き方です）
 - VOICEVOX の声は設定 `voice` で選べます（冥鳴ひまり・ずんだもん・四国めたん・春日部つむぎ・青山龍星・玄野武宏。既定は冥鳴ひまり）。`/config` の一覧か、`~/.claude/settings.json` の `pluginConfigs["usage-band@jra-dispatch-mods"].options.voice` で変えられます
-- `/usage-band-test` と入力すると、その場で通知（トーストと音）を試せます。VOICEVOX・標準の声・警告音のどれで鳴らしたかも表示します
+- `/usage-band-test` と入力すると、その場で通知（トーストと音）を試せます。VOICEVOX・標準の声・警告音のどれで鳴らしたかも表示します。`/usage-band-test 50` で、50% の軽いお知らせを試せます
 - 残量が変わるたびに、ホームフォルダの `.claude\usage-band\usage-log-YYYY-MM.csv` に1行ずつ記録します（月ごとのファイル）。列は `timestamp_jst, weekday, hour, five_hour_used_pct, five_hour_resets_jst, seven_day_used_pct, seven_day_resets_jst` で、Excel・R・pandas でそのまま開けます。`/usage-band-log` でファイルの場所と今月の件数を表示し、設定 `log` を false にすると記録を止めます。Claude Code を同時にいくつも開いていると、まれに1行抜けることがあります
 - あわせて、このパソコンの Claude Code が1回答えるごとに、使ったトークン数を `.claude\usage-band\turn-log-YYYY-MM.csv` に1行ずつ記録します。列は `timestamp_jst, weekday, hour, agent（main = 会話の回答、sub = サブエージェント）, model, input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens` です。5時間枠・週間枠はクラウドのセッションや claude.ai のチャットとも共有なので、残量の記録と突き合わせると、ローカルで使った分とそれ以外を分けて見積もれます（設定 `log` を false にすると、こちらも止まります）
 - 中身を見るときは `/usage-band-open` を使うと、記録のコピーを Excel で開きます。元のファイルを Excel で開いたままにしても、書き込めなかった記録は取り置いて、閉じたあとにまとめて書き込みます（そのあいだは画面の隅に注意が出ます）
