@@ -4,9 +4,9 @@ import type { Engine } from 'claude-code/testing'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
-const STATUS = '残量 ｜ 🟡 5時間 ███░░░░░░░ 28% 14:30回復 ｜ 🟢 週間 ██████░░░░ 55% 10/10 9:00回復'
+const STATUS = '残量 ｜ 🟡 5時間 █░░░░ 28% 14:30回復 ｜ 🟢 週間 ███░░ 55% 10/10 9:00回復'
 
-const BENEATH = ['残量', '🟡 5時間 ███░░░░░░░ 28% 14:30回復', '🟢 週間 ██████░░░░ 55% 10/10 9:00回復'].join('\n')
+const BENEATH = ['残量', '🟡 5時間 █░░░░ 28% 14:30回復', '🟢 週間 ███░░ 55% 10/10 9:00回復'].join('\n')
 
 const props = (bodyColumns = 100, hasSurvey = false) => ({
   hasSurvey,

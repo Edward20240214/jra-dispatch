@@ -23,6 +23,9 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // 帯の幅がこれより狭いときはバーを半分の長さにして、1行に収める
 const WIDE_COLUMNS = 80
 
+// 文字で出すとき（コマンドの返事・回答の下・ステータス行）のバーの長さ。スマホの文字では █ が太く、10 マスだと1行に収まらない
+const TEXT_CELLS = 5
+
 // 残量がこの値(%)を下回ったら、トーストと音で一度だけ知らせる
 const ALERT_BELOW = 20
 
@@ -104,7 +107,7 @@ const lineOf = (list: readonly UsageWindow[], now: number, separator: string) =>
         .map(w => {
           const remaining = remainingOf(w)
 
-          return `${MARKS[colorOf(remaining)]} ${LABELS[w.kind] ?? w.kind} ${barOf(remaining, 10)} ${Math.round(remaining)}%${recoveryOf(w, now)}`
+          return `${MARKS[colorOf(remaining)]} ${LABELS[w.kind] ?? w.kind} ${barOf(remaining, TEXT_CELLS)} ${Math.round(remaining)}%${recoveryOf(w, now)}`
         })
         .join(separator)}`
 
