@@ -501,8 +501,63 @@ test('/usage-band-log tells where the file is and how many records it holds', as
   const { text } = await runLogCommand($)
 
   expect(text).toBe(
-    `記録ファイル：${LOG_PATH}\n今月の記録：2 件\n中身を見るときは /usage-band-open を使うと、記録を止めずに見られます。`,
+    [
+      `記録ファイル：${LOG_PATH}`,
+      '今月の記録：2 件',
+      `ローカルの回答の記録：${TURN_PATH}（今月 0 件）`,
+      '中身を見るときは /usage-band-open を使うと、記録を止めずに見られます。',
+    ].join('\n'),
   )
+})
+
+const TURN_PATH = 'C:\\Users\\kenichi\\.claude\\usage-band\\turn-log-2026-10.csv'
+const TURN_HEADER =
+  'timestamp_jst,weekday,hour,agent,model,input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens'
+const turnLogOf = (files: Map<string, string>) => [...files.entries()].find(([path]) => path.endsWith(TURN_PATH))?.[1]
+
+const USAGE = {
+  input_tokens: 1200,
+  output_tokens: 350,
+  cache_read_input_tokens: 40_000,
+  cache_creation_input_tokens: 2_000,
+  model: 'claude-opus-5-5',
+}
+
+test('records the tokens of each local answer, the subagents\' too', async ($, on) => {
+  const { files } = setup(on, ['terminal'], 'windows-voicevox')
+
+  await $.turn.complete({ answer: 'done', durationMs: 1000, isAborted: false, turnId: 't1', reason: 'answer', usage: USAGE })
+  await $.turn.complete({
+    answer: 'report',
+    durationMs: 500,
+    isAborted: false,
+    turnId: 't2',
+    reason: 'answer',
+    agentId: 'a1',
+    usage: { ...USAGE, model: 'claude-haiku-5-5', output_tokens: 90 },
+  })
+
+  expect(turnLogOf(files)).toBe(
+    [
+      TURN_HEADER,
+      '2026-10-07T12:00:00+09:00,Wed,12,main,claude-opus-5-5,1200,350,40000,2000',
+      '2026-10-07T12:00:00+09:00,Wed,12,sub,claude-haiku-5-5,1200,90,40000,2000',
+      '',
+    ].join('\n'),
+  )
+  expect(logOf(files)).toBeUndefined()
+
+  const { text } = await runLogCommand($)
+
+  expect(text).toContain('（今月 2 件）')
+})
+
+test('records no tokens when the log setting is off', { options: { log: false } }, async ($, on) => {
+  const { files } = setup(on, ['terminal'], 'windows-voicevox')
+
+  await $.turn.complete({ answer: 'done', durationMs: 1000, isAborted: false, turnId: 't1', reason: 'answer', usage: USAGE })
+
+  expect(files.size).toBe(0)
 })
 
 const runOpenCommand = ($: Engine) =>
