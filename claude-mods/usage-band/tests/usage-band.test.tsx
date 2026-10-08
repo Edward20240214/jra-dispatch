@@ -569,20 +569,82 @@ const paneProps = (bodyColumns = 40) => ({
 })
 
 const mountPane = ($: Engine, bodyColumns?: number) =>
-  $.ui.mount({ plugin: 'usage-band', surface: 'mobile', component: 'Pane', requestId: 'usage-band', props: paneProps(bodyColumns) })
+  $.ui.mount({ plugin: 'usage-band', surface: 'terminal', component: 'Pane', requestId: 'usage-band', props: paneProps(bodyColumns) })
 
 const phoneJoins = async ($: Engine, roster: RenderSurface[]) => {
   roster.push('mobile')
   await $.session.attach({ surface: 'mobile', clientId: 'phone' })
 }
 
-test('opens the meter pane when the phone joins, one window per line', async ($, on) => {
-  const { roster, panesOpened } = setup(on, [])
+const phoneLeaves = async ($: Engine, roster: RenderSurface[]) => {
+  roster.splice(roster.indexOf('mobile'), 1)
+  await $.session.detach({ surface: 'mobile', clientId: 'phone', reason: 'detach' })
+}
 
-  await measure($, 6)
+// the person typing a command of the plugin's, from the phone's narrow screen
+const runCommand = ($: Engine, command: string) =>
+  $.command.run({
+    command,
+    args: '',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 40 },
+  })
+
+test('/usage-band-now shows the meter as text, one window per line', async ($, on) => {
+  setup(on, ['terminal'])
+  await measure($, 72.5)
+
+  expect((await runCommand($, 'usage-band-now')).text).toBe(BENEATH)
+})
+
+test('/usage-band-now says it is waiting before the first reading', async ($, on) => {
+  setup(on, ['terminal'])
+
+  expect((await runCommand($, 'usage-band-now')).text).toBe('残量: 取得待ち（Claude の返事が1回届くと表示できます）')
+})
+
+test('while a phone is connected, adds the figures beneath each answer even where the band is drawn', async ($, on) => {
+  const { roster } = setup(on, ['terminal'])
+
+  await measure($, 72.5)
   await phoneJoins($, roster)
 
+  expect((await completeTurn($)).text).toBe(BENEATH)
+
+  await phoneLeaves($, roster)
+
+  expect((await completeTurn($)).text).toBe('done')
+})
+
+test('does not open a pane when the phone joins, since the phone app draws none', async ($, on) => {
+  const { roster, panesOpened } = setup(on, ['terminal'])
+
+  await measure($, 72.5)
+  await phoneJoins($, roster)
+
+  expect(panesOpened).toEqual([])
+})
+
+test('/usage-band-pane opens the meter pane and puts the meter in its reply too', async ($, on) => {
+  const { panesOpened } = setup(on, [])
+
+  await measure($, 72.5)
+
+  const { text } = await runCommand($, 'usage-band-pane')
+
   expect(panesOpened).toEqual(['usage-band'])
+  expect(text).toBe(
+    [
+      '残量パネルを開きました。閉じるときは、パネルの閉じる印か Esc キーを使います。',
+      'スマホのアプリにはパネルが出ないため、今の残量をここにも出します（/usage-band-now でいつでも見られます）。',
+      BENEATH,
+    ].join('\n'),
+  )
+})
+
+test('the pane draws one window per line', async ($, on) => {
+  setup(on, [])
+  await measure($, 6)
 
   const pane = await mountPane($)
 
@@ -602,41 +664,15 @@ test('halves the bars in a narrow pane', async ($, on) => {
 })
 
 test('while the pane shows the meter, leaves the status line and the answers alone', async ($, on) => {
-  const { roster, statuses } = setup(on, [])
+  const { statuses } = setup(on, [])
 
   await measure($, 72.5)
   expect(statuses.at(-1)).toBe(STATUS)
 
-  await phoneJoins($, roster)
+  await runCommand($, 'usage-band-pane')
 
   expect(statuses.at(-1)).toBeUndefined()
   expect((await completeTurn($)).text).toBe('done')
-})
-
-test('closes the pane when the last phone leaves, and the status line comes back', async ($, on) => {
-  const { roster, panesClosed, statuses } = setup(on, [])
-
-  await measure($, 72.5)
-  await phoneJoins($, roster)
-  roster.splice(roster.indexOf('mobile'), 1)
-  await $.session.detach({ surface: 'mobile', clientId: 'phone', reason: 'detach' })
-
-  expect(panesClosed).toEqual(['usage-band'])
-  expect(statuses.at(-1)).toBe(STATUS)
-})
-
-test('/usage-band-pane opens the meter pane', async ($, on) => {
-  const { panesOpened } = setup(on, [])
-
-  const { text } = await $.command.run({
-    command: 'usage-band-pane',
-    args: '',
-    origin: { kind: 'composer' },
-    presentation: { isFullscreen: false, columns: 40 },
-  })
-
-  expect(panesOpened).toEqual(['usage-band'])
-  expect(text).toBe('残量パネルを開きました。閉じるときは、パネルの閉じる印か Esc キーを使います。')
 })
 
 test('does not call anyone when the name is set to なし', { options: { name: 'なし' } }, async ($, on) => {

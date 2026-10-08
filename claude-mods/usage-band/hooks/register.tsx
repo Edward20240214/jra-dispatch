@@ -116,6 +116,11 @@ const drawsBand = async ($: EngineInterface) =>
 // 帯か残量パネルのどちらかに出ていれば、ステータス行と回答の下の行は要らない
 const isShown = async ($: EngineInterface) => (await drawsBand($)) || (await read($, paneOpen))
 
+// スマホの Claude アプリは帯も残量パネルも描かない。届くのは回答とコマンドの返事の文字だけ
+const hasPhone = async ($: EngineInterface) => (await $.session.surfaces()).includes('mobile')
+
+const WAITING_TEXT = '残量: 取得待ち（Claude の返事が1回届くと表示できます）'
+
 const pinStatus = async ($: EngineInterface, list: readonly UsageWindow[]) =>
   $.ui.status((await isShown($)) ? undefined : lineOf(list, await $.clock.now(), ' ｜ '))
 
@@ -467,8 +472,12 @@ export const register: Register = (on, options) => {
       description: '残量の記録のコピーを Excel で開く（記録を止めずに見られる）',
     })
     await $.command.register({
+      name: 'usage-band-now',
+      description: '今の残量を文字で表示する（スマホからも見られる）',
+    })
+    await $.command.register({
       name: 'usage-band-pane',
-      description: '残量パネルを開く（スマホなど、入力欄の上に残量が出ない画面向け）',
+      description: '残量パネルを開く（入力欄の上に残量が出ない画面向け）',
     })
 
     const result = await next(e)
@@ -573,7 +582,8 @@ export const register: Register = (on, options) => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
 
-    if (e.agentId !== undefined || e.reason !== 'answer' || (await isShown($))) {
+    // スマホがつながっているあいだは、パソコンの画面に帯が出ていても回答の下に添える
+    if (e.agentId !== undefined || e.reason !== 'answer' || ((await isShown($)) && !(await hasPhone($)))) {
       return result
     }
 
@@ -584,25 +594,6 @@ export const register: Register = (on, options) => {
     }
 
     return { ...result, text: lineOf(list, await $.clock.now(), '\n') }
-  })
-
-  // スマホがつながったら残量パネルを開き、スマホがすべて離れたら閉じる
-  on('session.attach', { surface: 'mobile' }, async ($, e, next) => {
-    const result = await next(e)
-
-    await openPane($)
-
-    return result
-  })
-
-  on('session.detach', { surface: 'mobile' }, async ($, e, next) => {
-    const result = await next(e)
-
-    if (!(await $.session.surfaces()).includes('mobile')) {
-      await $.ui.close({ id: PANE })
-    }
-
-    return result
   })
 
   // 残量パネルが閉じたことを覚えておく。閉じること自体は決して止めない
@@ -617,11 +608,28 @@ export const register: Register = (on, options) => {
     return result
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: 'usage-band-pane' }, async $ => ({
-    text: (await openPane($))
-      ? '残量パネルを開きました。閉じるときは、パネルの閉じる印か Esc キーを使います。'
-      : '残量パネルは開く準備ができていますが、この画面ではまだ表示されていません。',
-  }))
+  // 返事の文字はどの画面にも届くので、今の残量をそのまま返す
+  on('command.run', { command: 'usage-band-now' }, async $ => {
+    const list = (await read($, windows)) ?? []
+
+    return { text: list.length === 0 ? WAITING_TEXT : lineOf(list, await $.clock.now(), '\n') }
+  })
+
+  // パネルを描かない画面（スマホなど）でも分かるよう、返事に今の残量も添える
+  on('command.run', { command: 'usage-band-pane' }, async $ => {
+    const opened = await openPane($)
+    const list = (await read($, windows)) ?? []
+
+    return {
+      text: [
+        opened
+          ? '残量パネルを開きました。閉じるときは、パネルの閉じる印か Esc キーを使います。'
+          : '残量パネルは開く準備ができていますが、この画面ではまだ表示されていません。',
+        'スマホのアプリにはパネルが出ないため、今の残量をここにも出します（/usage-band-now でいつでも見られます）。',
+        list.length === 0 ? WAITING_TEXT : lineOf(list, await $.clock.now(), '\n'),
+      ].join('\n'),
+    }
+  })
 
   // 残量パネルの中身: 枠ごとに1行（スマホの細い画面でも収まるように）
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
