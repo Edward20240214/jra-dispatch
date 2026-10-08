@@ -5,6 +5,10 @@ import type { UsageWindow } from '../types'
 
 const windows = atom({ plugin: 'usage-band', key: 'windows' } as const, null)
 const alerted = atom({ plugin: 'usage-band', key: 'alerted' } as const, {})
+const paneOpen = atom({ plugin: 'usage-band', key: 'paneOpen' } as const, false)
+
+// 入力欄の上の帯を描けない画面（スマホの Claude アプリ）では、残量をこのパネルに出す
+const PANE = 'usage-band'
 
 const LABELS: Record<string, string> = {
   five_hour: '5時間',
@@ -109,8 +113,20 @@ const lineOf = (list: readonly UsageWindow[], now: number, separator: string) =>
 const drawsBand = async ($: EngineInterface) =>
   (await $.session.surfaces()).some(s => s === 'terminal' || s === 'desktop')
 
+// 帯か残量パネルのどちらかに出ていれば、ステータス行と回答の下の行は要らない
+const isShown = async ($: EngineInterface) => (await drawsBand($)) || (await read($, paneOpen))
+
 const pinStatus = async ($: EngineInterface, list: readonly UsageWindow[]) =>
-  $.ui.status((await drawsBand($)) ? undefined : lineOf(list, await $.clock.now(), ' ｜ '))
+  $.ui.status((await isShown($)) ? undefined : lineOf(list, await $.clock.now(), ' ｜ '))
+
+const openPane = async ($: EngineInterface) => {
+  const opened = await $.ui.open({ id: PANE, title: '残量', rows: 3 })
+
+  await update($, paneOpen, () => opened.isPlaced)
+  await pinStatus($, (await read($, windows)) ?? [])
+
+  return opened.isPlaced
+}
 
 // PowerShell のスクリプトは、引用符や改行の扱いを気にせずに済むよう -EncodedCommand（UTF-16LE の base64）で渡す
 const encodePowerShell = (script: string) => {
@@ -441,6 +457,10 @@ export const register: Register = (on, options) => {
       name: 'usage-band-open',
       description: '残量の記録のコピーを Excel で開く（記録を止めずに見られる）',
     })
+    await $.command.register({
+      name: 'usage-band-pane',
+      description: '残量パネルを開く（スマホなど、入力欄の上に残量が出ない画面向け）',
+    })
 
     const result = await next(e)
     const { rateLimits } = await $.session.usage()
@@ -544,7 +564,7 @@ export const register: Register = (on, options) => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
 
-    if (e.agentId !== undefined || e.reason !== 'answer' || (await drawsBand($))) {
+    if (e.agentId !== undefined || e.reason !== 'answer' || (await isShown($))) {
       return result
     }
 
@@ -555,6 +575,77 @@ export const register: Register = (on, options) => {
     }
 
     return { ...result, text: lineOf(list, await $.clock.now(), '\n') }
+  })
+
+  // スマホがつながったら残量パネルを開き、スマホがすべて離れたら閉じる
+  on('session.attach', { surface: 'mobile' }, async ($, e, next) => {
+    const result = await next(e)
+
+    await openPane($)
+
+    return result
+  })
+
+  on('session.detach', { surface: 'mobile' }, async ($, e, next) => {
+    const result = await next(e)
+
+    if (!(await $.session.surfaces()).includes('mobile')) {
+      await $.ui.close({ id: PANE })
+    }
+
+    return result
+  })
+
+  // 残量パネルが閉じたことを覚えておく。閉じること自体は決して止めない
+  on('ui.close', async ($, e, next) => {
+    const result = await next(e)
+
+    if (e.id === PANE) {
+      await update($, paneOpen, () => false)
+      await pinStatus($, (await read($, windows)) ?? [])
+    }
+
+    return result
+  }).catch(($, e, next) => next(e))
+
+  on('command.run', { command: 'usage-band-pane' }, async $ => ({
+    text: (await openPane($))
+      ? '残量パネルを開きました。閉じるときは、パネルの閉じる印か Esc キーを使います。'
+      : '残量パネルは開く準備ができていますが、この画面ではまだ表示されていません。',
+  }))
+
+  // 残量パネルの中身: 枠ごとに1行（スマホの細い画面でも収まるように）
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const list = await read($, windows)
+    const { Box, Text } = $.ui.resolve(e)
+
+    if (list === null || list.length === 0) {
+      return <Text dimColor>残量: 取得待ち（返事が届くと表示されます）</Text>
+    }
+
+    const now = await $.clock.now()
+    const cells = e.props.bodyColumns >= 34 ? 10 : 5
+
+    return (
+      <Box flexDirection="column">
+        {list.map(w => {
+          const remaining = remainingOf(w)
+          const color = colorOf(remaining)
+
+          return (
+            <Text wrap="truncate-end">
+              <Text dimColor>{LABELS[w.kind] ?? w.kind} </Text>
+              <Text color={color}>{barOf(remaining, cells)}</Text>
+              <Text bold color={color}>
+                {' '}
+                {Math.round(remaining)}%
+              </Text>
+              <Text dimColor>{recoveryOf(w, now)}</Text>
+            </Text>
+          )
+        })}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
