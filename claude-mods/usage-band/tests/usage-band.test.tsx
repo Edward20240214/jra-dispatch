@@ -306,7 +306,7 @@ const TEST_SPEECH = 'テストです。残量が20パーセントを切ると、
 test('alerts once, with a toast and speech, when a window drops below 20%', async ($, on) => {
   const { clock, toasts, spoken } = setup(on)
 
-  await measure($, 70)
+  await measure($, 40)
   expect(toasts).toHaveLength(0)
 
   await measure($, 85)
@@ -319,6 +319,66 @@ test('alerts once, with a toast and speech, when a window drops below 20%', asyn
   await clock.settle()
   expect(toasts).toHaveLength(1)
   expect(spoken).toHaveLength(1)
+})
+
+const NOTICE = 'ℹ 残量が50%を切りました：5時間 残り45% 14:30回復'
+
+test('lets you know lightly, with a toast and no sound, when a window drops below 50%', async ($, on) => {
+  const { clock, toasts, spoken } = setup(on)
+
+  await measure($, 40)
+  expect(toasts).toHaveLength(0)
+
+  await measure($, 55)
+  await clock.settle()
+
+  expect(toasts).toEqual([NOTICE])
+  expect(spoken).toHaveLength(0)
+})
+
+test('lets you know below 50% only once in a window, even from another session', async ($, on) => {
+  const { toasts } = setup(on, ['terminal'], 'mac', { noticed: { five_hour: '2026-10-07T05:30:00Z' } })
+
+  await measure($, 55)
+  await measure($, 60)
+
+  expect(toasts).toHaveLength(0)
+})
+
+test('lets you know below 50% again once the window has reset', async ($, on) => {
+  const { toasts } = setup(on)
+
+  await measure($, 55)
+  await measure($, 10, '2026-10-07T10:30:00Z')
+  await measure($, 55, '2026-10-07T10:30:00Z')
+
+  expect(toasts).toEqual([NOTICE, 'ℹ 残量が50%を切りました：5時間 残り45% 19:30回復'])
+})
+
+test('leaves a drop straight below 20% to the voiced alert', async ($, on) => {
+  const { toasts } = setup(on)
+
+  await measure($, 85)
+
+  expect(toasts).toEqual(['⚠ 残量が20%を切りました：5時間 残り15% 14:30回復'])
+})
+
+test('/usage-band-test 50 tries the light notice without sound', async ($, on) => {
+  const { clock, toasts, spoken } = setup(on)
+
+  await measure($, 20)
+
+  const { text } = await $.command.run({
+    command: 'usage-band-test',
+    args: '50',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 100 },
+  })
+  await clock.settle()
+
+  expect(toasts).toEqual(['【テスト】残量が50%を切ると、このように軽く知らせます（声は出しません）（今の残量：5時間 80% ｜ 週間 55%）'])
+  expect(spoken).toHaveLength(0)
+  expect(text).toBe('テスト通知：50% のお知らせ（トーストだけ）を出しました。')
 })
 
 test('alerts again after the window resets and drops below 20% once more', async ($, on) => {

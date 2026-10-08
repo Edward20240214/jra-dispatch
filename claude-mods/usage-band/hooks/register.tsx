@@ -29,6 +29,9 @@ const TEXT_CELLS = 5
 // 残量がこの値(%)を下回ったら、トーストと音で一度だけ知らせる
 const ALERT_BELOW = 20
 
+// 残量がこの値(%)を下回ったら、トーストだけで軽く知らせる（声は出さない）
+const NOTICE_BELOW = 50
+
 const remainingOf = (w: UsageWindow) =>
   Math.min(100, Math.max(0, Math.round((100 - w.percentUsed) * 10) / 10))
 
@@ -285,6 +288,59 @@ const reportOf = (via: Via, voice: string) =>
     none: 'トーストは出しましたが、音は鳴らせませんでした。',
   })[via]
 
+// 50% のお知らせを出した枠と、そのときの回復時刻。$.store に置くので、セッションをいくつ開いても、
+// 起動し直しても、枠ごとに1回だけ出す
+const NOTICED_KEY = 'noticed'
+
+// 回復時刻の報告が少し揺れても、同じ枠の期間とみなす
+const isSamePeriod = (a: string, b: string) => a === b || Math.abs(Date.parse(a) - Date.parse(b)) < 60 * 60 * 1000
+
+const noticeTextOf = (list: readonly UsageWindow[], now: number) =>
+  `ℹ 残量が${NOTICE_BELOW}%を切りました：${list
+    .map(w => `${LABELS[w.kind] ?? w.kind} 残り${Math.round(remainingOf(w))}%${recoveryOf(w, now)}`)
+    .join(' ｜ ')}`
+
+// 50% を下回った枠を、トーストだけで一度知らせる。回復したら（または次の期間に入ったら）、また知らせる。
+// 一気に 20% を下回った枠は、声つきの知らせに任せる
+const noticeHalf = async ($: EngineInterface, list: readonly UsageWindow[]) => {
+  const stored = await $.store.get(NOTICED_KEY)
+  const before: Record<string, string> =
+    typeof stored === 'object' && stored !== null
+      ? Object.fromEntries(Object.entries(stored).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+      : {}
+  const after: Record<string, string> = {}
+  const fresh: UsageWindow[] = []
+
+  for (const [kind, period] of Object.entries(before)) {
+    if (!list.some(w => w.kind === kind && remainingOf(w) >= NOTICE_BELOW)) {
+      after[kind] = period
+    }
+  }
+
+  for (const w of list) {
+    const period = w.resetsAt ?? ''
+    const seen = before[w.kind]
+
+    if (remainingOf(w) >= NOTICE_BELOW || (seen !== undefined && isSamePeriod(seen, period))) {
+      continue
+    }
+
+    after[w.kind] = period
+
+    if (remainingOf(w) >= ALERT_BELOW) {
+      fresh.push(w)
+    }
+  }
+
+  if (JSON.stringify(after) !== JSON.stringify(before)) {
+    await $.store.set(NOTICED_KEY, after)
+  }
+
+  if (fresh.length > 0) {
+    $.ui.toast(noticeTextOf(fresh, await $.clock.now()), { timeoutMs: 8_000 })
+  }
+}
+
 // しきい値を下回った枠を一度だけ知らせる。リセットで回復したら、次に下回ったときにまた知らせる
 const alertLow = async ($: EngineInterface, list: readonly UsageWindow[], speech: Speech) => {
   const before = await read($, alerted)
@@ -524,6 +580,8 @@ const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[],
 
   await $.store.set(LAST_KEY, { list, at: await $.clock.now() })
   await pinStatus($, list)
+  // トーストは前のものと入れ替わるので、大事な 20% の知らせを後に出す
+  await noticeHalf($, list)
   await alertLow($, list, speech)
 }
 
@@ -587,7 +645,8 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'usage-band-test',
-      description: '残量の通知（トーストと音）をその場で試す',
+      description: '残量の通知（トーストと音）をその場で試す。50 を付けると、50% の軽いお知らせを試す',
+      argumentHint: '[50]',
     })
     await $.command.register({
       name: 'usage-band-log',
@@ -620,9 +679,19 @@ export const register: Register = (on, options) => {
   })
 
   // しきい値を変えずに、本番と同じトーストと音をその場で出して確かめる
-  on('command.run', { command: 'usage-band-test' }, async $ => {
+  on('command.run', { command: 'usage-band-test' }, async ($, e) => {
     const list = (await read($, windows)) ?? []
     const current = list.map(w => `${LABELS[w.kind] ?? w.kind} ${Math.round(remainingOf(w))}%`).join(' ｜ ')
+
+    // /usage-band-test 50: 50% の軽いお知らせ（トーストだけ）を試す
+    if (e.args.trim() === String(NOTICE_BELOW)) {
+      $.ui.toast(
+        `【テスト】残量が${NOTICE_BELOW}%を切ると、このように軽く知らせます（声は出しません）${current === '' ? '' : `（今の残量：${current}）`}`,
+        { timeoutMs: 8_000 },
+      )
+
+      return { text: `テスト通知：${NOTICE_BELOW}% のお知らせ（トーストだけ）を出しました。` }
+    }
 
     $.ui.toast(
       `【テスト】残量が${ALERT_BELOW}%を切ると、このように知らせます${current === '' ? '' : `（今の残量：${current}）`}`,
