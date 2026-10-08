@@ -96,6 +96,10 @@ const recoveryOf = (w: UsageWindow, now: number) => {
   return reset === undefined ? '' : ` ${reset}回復`
 }
 
+// 回復時刻を過ぎた枠は、使った分が戻っているので満タンとして出す（取っておいた古い値を出すときのため）
+const shownOf = (list: readonly UsageWindow[], now: number): UsageWindow[] =>
+  list.map(w => (w.resetsAt !== undefined && Date.parse(w.resetsAt) <= now ? { kind: w.kind, percentUsed: 0 } : w))
+
 // 色が付けられない文字だけの表示では、色の代わりに印を付ける
 const MARKS = { success: '🟢', warning: '🟡', error: '🔴' } as const
 
@@ -103,7 +107,7 @@ const MARKS = { success: '🟢', warning: '🟡', error: '🔴' } as const
 const lineOf = (list: readonly UsageWindow[], now: number, separator: string) =>
   list.length === 0
     ? '残量: 取得待ち'
-    : `残量${separator}${list
+    : `残量${separator}${shownOf(list, now)
         .map(w => {
           const remaining = remainingOf(w)
 
@@ -448,14 +452,47 @@ const OPEN_REPORTS: Record<number, string> = {
   3: 'まだ今月の記録ファイルがありません。残量が変わると記録が始まります。',
 }
 
+// 最後に受け取った残量と、受け取った時刻。$.store は次の起動まで残るので、窓を起動し直したあとも出せる
+const LAST_KEY = 'lastReading'
+
+type Reading = { list: UsageWindow[]; at: number }
+
+const isWindow = (w: unknown): w is UsageWindow =>
+  typeof w === 'object' &&
+  w !== null &&
+  'kind' in w &&
+  typeof w.kind === 'string' &&
+  'percentUsed' in w &&
+  typeof w.percentUsed === 'number' &&
+  (!('resetsAt' in w) || typeof w.resetsAt === 'string')
+
+const lastReadingOf = async ($: EngineInterface): Promise<Reading | undefined> => {
+  const stored = await $.store.get(LAST_KEY)
+
+  if (typeof stored !== 'object' || stored === null || !('list' in stored) || !('at' in stored)) {
+    return undefined
+  }
+
+  const { list, at } = stored
+
+  return Array.isArray(list) && list.length > 0 && list.every(isWindow) && typeof at === 'number' ? { list, at } : undefined
+}
+
+// 読み取りが空のとき（残量を返さない問い合わせのあとなど）は、最後に受け取った値をそのまま残す
 const save = async ($: EngineInterface, rateLimits: readonly SessionRateLimit[], speech: Speech) => {
+  if (rateLimits.length === 0) {
+    return
+  }
+
   const list = (await update($, windows, () => rateLimits.map(w => ({ ...w })))) ?? []
 
+  await $.store.set(LAST_KEY, { list, at: await $.clock.now() })
   await pinStatus($, list)
   await alertLow($, list, speech)
 }
 
-// まだ値を持っていなければ、その場で読む。読み込み直したあとは、窓が1ポイント動くまで知らせが来ないため
+// まだ値を持っていなければ、その場で読む（読み込み直したあとは、窓が1ポイント動くまで知らせが来ないため）。
+// それも空なら、前に受け取って取っておいた値を出す（古い値なので知らせは鳴らさない）
 const currentOf = async ($: EngineInterface, speech: Speech) => {
   const list = (await read($, windows)) ?? []
 
@@ -465,13 +502,44 @@ const currentOf = async ($: EngineInterface, speech: Speech) => {
 
   const { rateLimits } = await $.session.usage()
 
-  if (rateLimits.length === 0) {
-    return []
+  if (rateLimits.length > 0) {
+    await save($, rateLimits, speech)
+
+    return (await read($, windows)) ?? []
   }
+
+  const last = await lastReadingOf($)
+
+  return last === undefined ? [] : ((await update($, windows, () => last.list)) ?? [])
+}
+
+// 受け取ってからこれ以上たった値には、いつの値かを添える
+const STALE_MS = 10 * 60 * 1000
+
+const ageOf = (ms: number) =>
+  ms < 60 * 60 * 1000
+    ? `${Math.floor(ms / 60_000)}分前`
+    : ms < DAY_MS
+      ? `${Math.floor(ms / (60 * 60 * 1000))}時間前`
+      : `${Math.floor(ms / DAY_MS)}日前`
+
+// コマンドの返事に出す残量。Claude Code が今の値を持っていればそれを、なければ最後に受け取った値を、いつの値かを添えて出す
+const meterTextOf = async ($: EngineInterface, speech: Speech) => {
+  const { rateLimits } = await $.session.usage()
 
   await save($, rateLimits, speech)
 
-  return (await read($, windows)) ?? []
+  const list = await currentOf($, speech)
+
+  if (list.length === 0) {
+    return WAITING_TEXT
+  }
+
+  const now = await $.clock.now()
+  const age = rateLimits.length > 0 ? 0 : now - ((await lastReadingOf($))?.at ?? now)
+  const note = age >= STALE_MS ? `\n（${ageOf(age)}に受け取った値です。Claude に話しかけると新しくなります）` : ''
+
+  return `${lineOf(list, now, '\n')}${note}`
 }
 
 export const register: Register = (on, options) => {
@@ -505,11 +573,11 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     const { rateLimits } = await $.session.usage()
 
-    // 再読み込み時に、前回の値を空の読み取りで消さない
+    // 再読み込み時に、前回の値を空の読み取りで消さない。値がなければ、前に受け取って取っておいた値を出す
     if (rateLimits.length > 0) {
       await save($, rateLimits, speech)
     } else {
-      await pinStatus($, (await read($, windows)) ?? [])
+      await pinStatus($, await currentOf($, speech))
     }
 
     return result
@@ -590,14 +658,10 @@ export const register: Register = (on, options) => {
   })
 
   on('session.measure', async ($, e, next) => {
-    const isMoved = e.changed.includes('rateLimits')
+    // 窓が動いていなくても毎回受け取り、受け取った時刻を新しくする（記録は動いたときだけ）
+    await save($, e.rateLimits, speech)
 
-    // 値をまだ持っていなければ、窓が動いていなくても受け取る（記録は動いたときだけ）
-    if (isMoved || (e.rateLimits.length > 0 && ((await read($, windows)) ?? []).length === 0)) {
-      await save($, e.rateLimits, speech)
-    }
-
-    if (isMoved && shouldLog) {
+    if (e.changed.includes('rateLimits') && shouldLog) {
       await appendLog($, e.rateLimits)
     }
 
@@ -634,16 +698,11 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   // 返事の文字はどの画面にも届くので、今の残量をそのまま返す
-  on('command.run', { command: 'usage-band-now' }, async $ => {
-    const list = await currentOf($, speech)
-
-    return { text: list.length === 0 ? WAITING_TEXT : lineOf(list, await $.clock.now(), '\n') }
-  })
+  on('command.run', { command: 'usage-band-now' }, async $ => ({ text: await meterTextOf($, speech) }))
 
   // パネルを描かない画面（スマホなど）でも分かるよう、返事に今の残量も添える
   on('command.run', { command: 'usage-band-pane' }, async $ => {
     const opened = await openPane($)
-    const list = await currentOf($, speech)
 
     return {
       text: [
@@ -651,7 +710,7 @@ export const register: Register = (on, options) => {
           ? '残量パネルを開きました。閉じるときは、パネルの閉じる印か Esc キーを使います。'
           : '残量パネルは開く準備ができていますが、この画面ではまだ表示されていません。',
         'スマホのアプリにはパネルが出ないため、今の残量をここにも出します（/usage-band-now でいつでも見られます）。',
-        list.length === 0 ? WAITING_TEXT : lineOf(list, await $.clock.now(), '\n'),
+        await meterTextOf($, speech),
       ].join('\n'),
     }
   })
@@ -670,7 +729,7 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        {list.map(w => {
+        {shownOf(list, now).map(w => {
           const remaining = remainingOf(w)
           const color = colorOf(remaining)
 
@@ -716,7 +775,7 @@ export const register: Register = (on, options) => {
       <Box>
         <Text wrap="truncate-end">
           <Text dimColor>残量 </Text>
-          {list.map((w, i) => {
+          {shownOf(list, now).map((w, i) => {
             const remaining = remainingOf(w)
             const color = colorOf(remaining)
 

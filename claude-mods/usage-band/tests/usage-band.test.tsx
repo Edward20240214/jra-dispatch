@@ -40,7 +40,12 @@ const LOG_HEADER =
   'timestamp_jst,weekday,hour,five_hour_used_pct,five_hour_resets_jst,seven_day_used_pct,seven_day_resets_jst'
 
 // 2026-10-07 12:00 JST; what the engine answers beneath the plugin
-const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: Host = 'mac') => {
+const setup = (
+  on: On,
+  surfaces: readonly RenderSurface[] = ['terminal'],
+  host: Host = 'mac',
+  stored: Readonly<Record<string, unknown>> = {},
+) => {
   const statuses: (string | undefined)[] = []
   const toasts: string[] = []
   const spoken: string[] = []
@@ -59,7 +64,7 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
   const panesClosed: string[] = []
 
   const clock = mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
-  mock.store(on)
+  mock.store(on, stored)
   on('session.measure', ($, e) => ({ changed: e.changed }))
   on('session.surfaces', () => ({ value: [...roster] }))
   // what the session already holds, as $.session.usage() answers it: a test fills it to stand for a reload
@@ -627,6 +632,54 @@ test('after a reload, takes the figures at the next measurement even when no win
   await $.session.measure({ context: { window: 200_000, tokens: 1000 }, rateLimits: HELD, changed: ['context'] })
 
   expect((await runCommand($, 'usage-band-now')).text).toBe(BENEATH)
+})
+
+const AGE_NOTE = (age: string) => `\n（${age}に受け取った値です。Claude に話しかけると新しくなります）`
+
+test('keeps the last figures when a reading comes back empty', async ($, on) => {
+  setup(on, ['terminal'])
+
+  await measure($, 72.5)
+  await $.session.measure({ context: { window: 200_000, tokens: 1000 }, rateLimits: [], changed: ['rateLimits'] })
+
+  expect((await runCommand($, 'usage-band-now')).text).toBe(BENEATH)
+})
+
+test('says how old the figures are when Claude Code holds none now', async ($, on) => {
+  const { clock } = setup(on, ['terminal'])
+
+  await measure($, 72.5)
+  await $.session.measure({ context: { window: 200_000, tokens: 1000 }, rateLimits: [], changed: ['rateLimits'] })
+  await clock.advance(30 * 60 * 1000)
+
+  expect((await runCommand($, 'usage-band-now')).text).toBe(BENEATH + AGE_NOTE('30分前'))
+})
+
+test('says nothing of age while Claude Code holds the figures now', async ($, on) => {
+  const { clock, held } = setup(on, ['terminal'])
+
+  await measure($, 72.5)
+  await clock.advance(30 * 60 * 1000)
+  held.rateLimits = HELD
+
+  expect((await runCommand($, 'usage-band-now')).text).toBe(BENEATH)
+})
+
+test('after a restart, shows the figures kept from before, saying how old they are', async ($, on) => {
+  setup(on, ['terminal'], 'mac', { lastReading: { list: HELD, at: Date.parse('2026-10-07T01:00:00Z') } })
+
+  expect((await runCommand($, 'usage-band-now')).text).toBe(BENEATH + AGE_NOTE('2時間前'))
+})
+
+test('shows a window whose reset has passed as full', async ($, on) => {
+  const { clock } = setup(on, ['terminal'])
+
+  await measure($, 72.5)
+  await clock.advance(3 * 60 * 60 * 1000)
+
+  expect((await runCommand($, 'usage-band-now')).text).toBe(
+    ['残量', '🟢 5時間 █████ 100%', '🟢 週間 ███░░ 55% 10/10 9:00回復'].join('\n') + AGE_NOTE('3時間前'),
+  )
 })
 
 test('records only when a window moved', async ($, on) => {
