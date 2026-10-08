@@ -62,6 +62,9 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
   mock.store(on)
   on('session.measure', ($, e) => ({ changed: e.changed }))
   on('session.surfaces', () => ({ value: [...roster] }))
+  // what the session already holds, as $.session.usage() answers it: a test fills it to stand for a reload
+  const held: { rateLimits: { kind: string; percentUsed: number; resetsAt?: string }[] } = { rateLimits: [] }
+  on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200_000 }, rateLimits: held.rateLimits } }))
   on('ui.open', ($, e) => {
     panesOpened.push(e.id)
 
@@ -161,6 +164,7 @@ const setup = (on: On, surfaces: readonly RenderSurface[] = ['terminal'], host: 
     roster,
     panesOpened,
     panesClosed,
+    held,
   }
 }
 
@@ -601,6 +605,36 @@ test('/usage-band-now says it is waiting before the first reading', async ($, on
   setup(on, ['terminal'])
 
   expect((await runCommand($, 'usage-band-now')).text).toBe('残量: 取得待ち（Claude の返事が1回届くと表示できます）')
+})
+
+// 2026-10-07 14:30 JST and 10-10 09:00 JST, as the session holds them before the plugin has heard of them
+const HELD = [
+  { kind: 'five_hour', percentUsed: 72.5, resetsAt: '2026-10-07T05:30:00Z' },
+  { kind: 'seven_day', percentUsed: 45, resetsAt: '2026-10-10T00:00:00Z' },
+]
+
+test('after a reload, /usage-band-now reads the figures the session already holds', async ($, on) => {
+  const { held } = setup(on, ['terminal'])
+
+  held.rateLimits = HELD
+
+  expect((await runCommand($, 'usage-band-now')).text).toBe(BENEATH)
+})
+
+test('after a reload, takes the figures at the next measurement even when no window moved a whole point', async ($, on) => {
+  setup(on, ['terminal'])
+
+  await $.session.measure({ context: { window: 200_000, tokens: 1000 }, rateLimits: HELD, changed: ['context'] })
+
+  expect((await runCommand($, 'usage-band-now')).text).toBe(BENEATH)
+})
+
+test('records only when a window moved', async ($, on) => {
+  const { files } = setup(on, ['terminal'], 'windows-voicevox')
+
+  await $.session.measure({ context: { window: 200_000, tokens: 1000 }, rateLimits: HELD, changed: ['context'] })
+
+  expect(logOf(files)).toBeUndefined()
 })
 
 test('while a phone is connected, adds the figures beneath each answer even where the band is drawn', async ($, on) => {
