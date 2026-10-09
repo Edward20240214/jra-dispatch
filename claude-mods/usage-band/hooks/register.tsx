@@ -6,6 +6,7 @@ import type { UsageWindow } from '../types'
 const windows = atom({ plugin: 'usage-band', key: 'windows' } as const, null)
 const alerted = atom({ plugin: 'usage-band', key: 'alerted' } as const, {})
 const paneOpen = atom({ plugin: 'usage-band', key: 'paneOpen' } as const, false)
+const askedFromPhone = atom({ plugin: 'usage-band', key: 'askedFromPhone' } as const, false)
 
 // 入力欄の上の帯を描けない画面（スマホの Claude アプリ）では、残量をこのパネルに出す
 const PANE = 'usage-band'
@@ -126,8 +127,11 @@ const drawsBand = async ($: EngineInterface) =>
 // 帯か残量パネルのどちらかに出ていれば、ステータス行と回答の下の行は要らない
 const isShown = async ($: EngineInterface) => (await drawsBand($)) || (await read($, paneOpen))
 
-// スマホの Claude アプリは帯も残量パネルも描かない。届くのは回答とコマンドの返事の文字だけ
+// スマホの Claude アプリは帯も残量パネルも描かない。届くのは回答・コマンドの返事・記録の行の文字だけ
 const hasPhone = async ($: EngineInterface) => (await $.session.surfaces()).includes('mobile')
+
+// スマホなど（Remote Control）から頼まれているか。依頼の出どころで見分け、画面の一覧に出ないスマホも拾う
+const isForPhone = async ($: EngineInterface) => (await read($, askedFromPhone)) || (await hasPhone($))
 
 const WAITING_TEXT = '残量: 取得待ち（Claude の返事が1回届くと表示できます）'
 
@@ -661,6 +665,10 @@ export const register: Register = (on, options) => {
       description: '今の残量を文字で表示する（スマホからも見られる）',
     })
     await $.command.register({
+      name: 'usage-band-check',
+      description: 'スマホ向けの表示がどう判断されているかを表示する（うまく出ないときの確認用）',
+    })
+    await $.command.register({
       name: 'usage-band-pane',
       description: '残量パネルを開く（入力欄の上に残量が出ない画面向け）',
     })
@@ -786,8 +794,22 @@ export const register: Register = (on, options) => {
       await appendTurn($, e.usage, e.agentId !== undefined)
     }
 
-    // スマホがつながっているあいだは、パソコンの画面に帯が出ていても回答の下に添える
-    if (e.agentId !== undefined || e.reason !== 'answer' || ((await isShown($)) && !(await hasPhone($)))) {
+    if (e.agentId !== undefined || e.reason !== 'answer') {
+      return result
+    }
+
+    // スマホなどから頼まれた回答には、残量を記録の行として足す（回答の下の文字はスマホに届かないため）
+    if (await isForPhone($)) {
+      const list = await currentOf($, speech)
+
+      if (list.length > 0) {
+        $.ui.log(lineOf(list, await $.clock.now(), '\n'))
+      }
+
+      return result
+    }
+
+    if (await isShown($)) {
       return result
     }
 
@@ -798,6 +820,29 @@ export const register: Register = (on, options) => {
     }
 
     return { ...result, text: lineOf(list, await $.clock.now(), '\n') }
+  })
+
+  // 依頼の出どころを覚えておく。キーボードからなら false、スマホなど（Remote Control）からなら true。
+  // 通知や予約の実行など、人の依頼でないものでは変えない。依頼そのものは決して止めない
+  on('prompt.submit', async ($, e, next) => {
+    if (e.origin.kind === 'composer' || e.origin.kind === 'bridge') {
+      await update($, askedFromPhone, () => e.origin.kind === 'bridge')
+    }
+
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('command.run', { command: 'usage-band-check' }, async $ => {
+    const surfaces = await $.session.surfaces()
+    const fromPhone = await read($, askedFromPhone)
+
+    return {
+      text: [
+        `つながっている画面：${surfaces.length === 0 ? '（なし）' : surfaces.join(', ')}`,
+        `最後の依頼：${fromPhone ? 'スマホなど（Remote Control）から' : 'このパソコンのキーボードから'}`,
+        `回答のあとの残量の行：${(await isForPhone($)) ? '出す' : '出さない'}`,
+      ].join('\n'),
+    }
   })
 
   // 残量パネルが閉じたことを覚えておく。閉じること自体は決して止めない

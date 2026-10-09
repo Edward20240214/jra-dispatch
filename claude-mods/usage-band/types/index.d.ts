@@ -8,6 +8,8 @@ declare module 'claude-code' {
       alerted: Record<string, boolean>
       // 残量パネル（スマホなど、入力欄の上の帯を描けない画面向け）が画面に出ているか
       paneOpen: boolean
+      // 最後の依頼がスマホなど（Remote Control）から来たか。そのあいだは回答のあとに残量の行を足す
+      askedFromPhone: boolean
     }
   }
 }
