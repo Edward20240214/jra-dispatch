@@ -62,6 +62,8 @@ const setup = (
   const roster: RenderSurface[] = [...surfaces]
   const panesOpened: string[] = []
   const panesClosed: string[] = []
+  // the rows the plugin appends to the transcript with $.ui.log
+  const logRows: string[] = []
 
   const clock = mock.clock(on, { now: Date.parse('2026-10-07T03:00:00Z') })
   mock.store(on, stored)
@@ -153,6 +155,12 @@ const setup = (
   })
   on('fs.exists', ($, e) => ({ value: files.has(e.path) }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('ui.log', ($, e) => {
+    logRows.push(e.text)
+
+    return { value: undefined }
+  })
 
   return {
     clock,
@@ -170,6 +178,7 @@ const setup = (
     panesOpened,
     panesClosed,
     held,
+    logRows,
   }
 }
 
@@ -805,17 +814,53 @@ test('records only when a window moved', async ($, on) => {
   expect(logOf(files)).toBeUndefined()
 })
 
-test('while a phone is connected, adds the figures beneath each answer even where the band is drawn', async ($, on) => {
-  const { roster } = setup(on, ['terminal'])
+// a request typed at the prompt here, or sent from the phone over Remote Control
+const ask = ($: Engine, kind: 'composer' | 'bridge') => $.prompt.submit({ text: 'hi', wait: false, origin: { kind } })
+
+test('after an answer asked from the phone over Remote Control, adds the meter as a row of its own', async ($, on) => {
+  const { logRows } = setup(on, ['terminal'])
+
+  await measure($, 72.5)
+  await ask($, 'bridge')
+
+  expect((await completeTurn($)).text).toBe('done')
+  expect(logRows).toEqual([BENEATH])
+})
+
+test('stops adding the meter once a request comes from the keyboard', async ($, on) => {
+  const { logRows } = setup(on, ['terminal'])
+
+  await measure($, 72.5)
+  await ask($, 'bridge')
+  await ask($, 'composer')
+  await completeTurn($)
+
+  expect(logRows).toHaveLength(0)
+})
+
+test('while a phone is connected, adds the meter after each answer even where the band is drawn', async ($, on) => {
+  const { roster, logRows } = setup(on, ['terminal'])
 
   await measure($, 72.5)
   await phoneJoins($, roster)
 
-  expect((await completeTurn($)).text).toBe(BENEATH)
+  expect((await completeTurn($)).text).toBe('done')
+  expect(logRows).toEqual([BENEATH])
 
   await phoneLeaves($, roster)
+  await completeTurn($)
 
-  expect((await completeTurn($)).text).toBe('done')
+  expect(logRows).toHaveLength(1)
+})
+
+test('/usage-band-check tells how the phone is told apart', async ($, on) => {
+  setup(on, ['terminal'])
+
+  await ask($, 'bridge')
+
+  expect((await runCommand($, 'usage-band-check')).text).toBe(
+    ['つながっている画面：terminal', '最後の依頼：スマホなど（Remote Control）から', '回答のあとの残量の行：出す'].join('\n'),
+  )
 })
 
 test('does not open a pane when the phone joins, since the phone app draws none', async ($, on) => {
